@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   normalizeNpcResponse,
   personaSystemPrompts,
+  salvageNpcResponse,
   stripMarkdownCodeFences,
   type NpcMessage,
   type NpcPersona,
@@ -34,7 +35,7 @@ async function callAnthropic(
       model: MODEL,
       max_tokens: 500,
       system:
-        `${personaSystemPrompts[persona]}\\n` +
+        `${personaSystemPrompts[persona]}\n` +
         'Return ONLY JSON with shape: ' +
         '{"reply": string, "instruction": {"action":"buy"|"sell","sizePctOfCash": number,"reason": string} | null, "blocked": boolean, "resolvesGlitch": boolean}',
       messages: messages.map((m) => ({
@@ -59,8 +60,22 @@ async function callAnthropic(
 }
 
 function fallbackResponse(rawText: string): NpcResponse {
+  const salvaged = salvageNpcResponse(rawText);
+  if (salvaged) return salvaged;
+
+  const trimmed = rawText.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return {
+      reply:
+        'Message garbled on the wire — say that again and I will respond properly.',
+      instruction: null,
+      blocked: false,
+      resolvesGlitch: false,
+    };
+  }
+
   return {
-    reply: rawText || 'Unable to parse model response.',
+    reply: trimmed || 'Unable to parse model response.',
     instruction: null,
     blocked: false,
     resolvesGlitch: false,

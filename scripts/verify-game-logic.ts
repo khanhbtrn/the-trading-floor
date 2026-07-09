@@ -6,6 +6,7 @@ import {
   CONDUCT_OVERRIDE_PENALTY,
   instructionFailsRisk,
 } from '../src/lib/sessionRules';
+import { normalizeNpcResponse, salvageNpcResponse } from '../src/lib/npc';
 import { computeRank } from '../src/lib/rank';
 import { MAX_POSITION_PCT_OF_CASH } from '../src/lib/gameReducer';
 
@@ -43,5 +44,28 @@ assert.equal(computeRank(-1, 50), 'Junior Trader');
 // Conduct constants documented for playthrough QA
 assert.equal(CONDUCT_OVERRIDE_PENALTY, 20);
 assert.equal(CONDUCT_GLITCH_PANIC_PENALTY, 10);
+
+// Compliance malformed JSON — reason at top level, no reply field
+const complianceFix = normalizeNpcResponse({
+  action: 'buy',
+  sizePosition: 10,
+  reason:
+    'Hedge event: APPROVED - Manager-certified position limit exception for hedging purposes',
+  blocked: false,
+  resolvesGlitch: false,
+});
+assert.ok(complianceFix);
+assert.equal(complianceFix!.blocked, false);
+assert.equal(
+  complianceFix!.reply,
+  'Hedge event: APPROVED - Manager-certified position limit exception for hedging purposes'
+);
+assert.equal(complianceFix!.instruction, null);
+
+const salvaged = salvageNpcResponse(
+  '{"reason":"Override granted per policy.","blocked":false,"resolvesGlitch":false}'
+);
+assert.ok(salvaged);
+assert.equal(salvaged!.reply, 'Override granted per policy.');
 
 console.log('verify-game-logic: all checks passed');
