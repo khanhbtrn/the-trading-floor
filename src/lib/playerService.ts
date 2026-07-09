@@ -1,26 +1,12 @@
 import type { PlayerRow } from '@/lib/supabase';
 import type { Rank } from '@/lib/types';
 
-const PLAYER_ID_KEY = 'trading-floor-player-id';
-
 export type PlayerServiceResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
-export function getStoredPlayerId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(PLAYER_ID_KEY);
-}
-
-export function storePlayerId(id: string): void {
-  localStorage.setItem(PLAYER_ID_KEY, id);
-}
-
-export function clearStoredPlayerId(): void {
-  localStorage.removeItem(PLAYER_ID_KEY);
-}
-
-export async function createPlayer(
+/** Resume an existing player by name or create a new row (case-insensitive). */
+export async function resumePlayerByName(
   playerName: string
 ): Promise<PlayerServiceResult<PlayerRow>> {
   const trimmed = playerName.trim();
@@ -38,14 +24,13 @@ export async function createPlayer(
     const data = (await res.json()) as { player?: PlayerRow; error?: string };
 
     if (!res.ok) {
-      return { ok: false, error: data.error ?? `Create failed (${res.status})` };
+      return { ok: false, error: data.error ?? `Resume failed (${res.status})` };
     }
 
     if (!data.player) {
       return { ok: false, error: 'No player returned from server.' };
     }
 
-    storePlayerId(data.player.id);
     return { ok: true, data: data.player };
   } catch (e) {
     return {

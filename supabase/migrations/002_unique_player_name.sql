@@ -1,0 +1,2 @@
+-- Case-insensitive unique player names (run manually in Supabase SQL editor).
+-- alter table public.players add constraint unique_player_name unique (lower(player_name));

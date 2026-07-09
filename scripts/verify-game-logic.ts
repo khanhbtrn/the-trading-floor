@@ -3,6 +3,7 @@ import {
   compliantResizeBonus,
   CONDUCT_COMPLIANT_RESIZE_BONUS,
   CONDUCT_GLITCH_PANIC_PENALTY,
+  CONDUCT_ORDER_EXPIRED,
   CONDUCT_OVERRIDE_PENALTY,
   instructionFailsRisk,
 } from '../src/lib/sessionRules';
@@ -36,14 +37,21 @@ assert.equal(
 );
 
 // Rank thresholds
-assert.equal(computeRank(1000, 95), 'Desk Head');
-assert.equal(computeRank(1000, 80), 'VP');
-assert.equal(computeRank(0, 80), 'Associate');
+assert.equal(computeRank(0, 100), 'Junior Trader');
+assert.equal(computeRank(0, 80), 'Junior Trader');
+assert.equal(computeRank(49_999, 100), 'Junior Trader');
+assert.equal(computeRank(50_000, 70), 'Associate');
+assert.equal(computeRank(50_000, 69), 'Junior Trader');
+assert.equal(computeRank(200_000, 80), 'VP');
+assert.equal(computeRank(200_000, 79), 'Associate');
+assert.equal(computeRank(500_000, 90), 'Desk Head');
+assert.equal(computeRank(500_000, 89), 'VP');
 assert.equal(computeRank(-1, 50), 'Junior Trader');
 
 // Conduct constants documented for playthrough QA
 assert.equal(CONDUCT_OVERRIDE_PENALTY, 20);
 assert.equal(CONDUCT_GLITCH_PANIC_PENALTY, 10);
+assert.equal(CONDUCT_ORDER_EXPIRED, -5);
 
 // Compliance malformed JSON — reason at top level, no reply field
 const complianceFix = normalizeNpcResponse({

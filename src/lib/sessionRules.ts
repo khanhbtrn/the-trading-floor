@@ -4,6 +4,13 @@ import { MAX_POSITION_PCT_OF_CASH } from './gameReducer';
 export const CONDUCT_OVERRIDE_PENALTY = 20;
 export const CONDUCT_COMPLIANT_RESIZE_BONUS = 10;
 export const CONDUCT_GLITCH_PANIC_PENALTY = 10;
+export const CONDUCT_ORDER_EXPIRED = -5;
+
+export const MANAGER_NUDGE_LINES = [
+  'well?',
+  'still waiting.',
+  "this isn't a discussion",
+] as const;
 
 export function instructionFailsRisk(instruction: TradeInstruction): boolean {
   return instruction.sizePctOfCash > MAX_POSITION_PCT_OF_CASH;

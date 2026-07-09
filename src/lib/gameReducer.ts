@@ -4,6 +4,10 @@ export const INITIAL_CONDUCT_SCORE = 100;
 export const DEFAULT_STARTING_CASH = 100_000;
 export const MAX_POSITION_PCT_OF_CASH = 50;
 export const GLITCH_TICK = 20;
+export const SHOCK_TICK = 12;
+/** Biggest single-tick down-move ratio from the 2008 scenario CSV (tick 31). */
+export const SHOCK_DROP_RATIO = 90.0199966430664 / 99.8499984741211;
+export const ORDER_COUNTDOWN_SEC = 15;
 
 export const initialGameState: GameState = {
   playerId: '',
@@ -34,6 +38,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         careerPnL: state.careerPnL,
         sessionsPlayed: state.sessionsPlayed,
       };
+
+    case 'LOGOUT':
+      return { ...initialGameState };
 
     case 'LOAD_PLAYER':
       return {

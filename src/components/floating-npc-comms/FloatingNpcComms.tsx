@@ -12,6 +12,7 @@ const DOCK_ORDER: NpcPersonaId[] = ['manager', 'compliance', 'tech'];
 
 export interface FloatingNpcCommsProps {
   npcs: SidebarNpcPanelProps[];
+  onChatInputActiveChange?: (active: boolean) => void;
 }
 
 function FloatingNpcAvatar({
@@ -77,7 +78,7 @@ function FloatingNpcAvatar({
   );
 }
 
-export function FloatingNpcComms({ npcs }: FloatingNpcCommsProps) {
+export function FloatingNpcComms({ npcs, onChatInputActiveChange }: FloatingNpcCommsProps) {
   const [openPersona, setOpenPersona] = useState<NpcPersonaId | null>(null);
   const [shakeKeys, setShakeKeys] = useState<Record<NpcPersonaId, number>>({
     manager: 0,
@@ -202,6 +203,7 @@ export function FloatingNpcComms({ npcs }: FloatingNpcCommsProps) {
                     onSend={openNpc.onSend}
                     onMicPress={openNpc.onMicPress}
                     onUserReply={openNpc.onUserReply}
+                    onInputActiveChange={onChatInputActiveChange}
                   />
                 </div>
                 {openNpc.footerExtra && (

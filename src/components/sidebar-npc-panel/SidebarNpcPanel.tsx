@@ -24,6 +24,7 @@ export interface SidebarNpcPanelProps {
   onMicPress?: () => void;
   onClearUnread?: () => void;
   onUserReply?: () => void;
+  onInputActiveChange?: (active: boolean) => void;
   footerExtra?: ReactNode;
 }
 
@@ -44,6 +45,7 @@ export function SidebarNpcPanel({
   onMicPress,
   onClearUnread,
   onUserReply,
+  onInputActiveChange,
   footerExtra,
 }: SidebarNpcPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -141,6 +143,7 @@ export function SidebarNpcPanel({
               onSend={onSend}
               onMicPress={onMicPress}
               onUserReply={onUserReply}
+              onInputActiveChange={onInputActiveChange}
             />
           </div>
           {footerExtra}

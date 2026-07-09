@@ -287,6 +287,38 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+.tdv-size-input:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(113, 113, 122, 0.35);
+  color: #71717a;
+}
+
+.tdv-order-panel--glitch {
+  opacity: 0.55;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
+
+.tdv-order-panel--glitch::after {
+  content: 'FEED FROZEN';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: #fbbf24;
+  letter-spacing: 0.08em;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.tdv-order-panel {
+  position: relative;
+}
+
 .tdv-size-chips {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

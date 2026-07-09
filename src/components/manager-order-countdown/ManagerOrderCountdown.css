@@ -1,0 +1,48 @@
+.manager-countdown {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--manager-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--manager-accent) 8%, #0a0a0b);
+  border-radius: 4px;
+}
+
+.manager-countdown__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.manager-countdown__label {
+  font-size: 8px;
+  color: var(--manager-accent);
+  letter-spacing: 0.1em;
+}
+
+.manager-countdown__time {
+  font-size: 14px;
+  color: var(--manager-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.manager-countdown__track {
+  margin-top: 8px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.manager-countdown__bar {
+  height: 100%;
+  background: var(--manager-accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--manager-accent) 60%, transparent);
+  transition: width 0.1s linear;
+  border-radius: 3px;
+}
+
+.manager-countdown__hint {
+  margin-top: 6px;
+  font-size: 9px;
+  color: #71717a;
+}
