@@ -14,34 +14,88 @@ export interface NpcResponse {
   resolvesGlitch: boolean;
 }
 
+function parseInstructionObject(
+  ins: Record<string, unknown>
+): TradeInstruction | null {
+  const action = ins.action;
+  const sizeRaw =
+    ins.sizePctOfCash ?? ins.sizePosition ?? ins.size_pct_of_cash;
+  const reason = ins.reason;
+
+  if (
+    (action === 'buy' || action === 'sell') &&
+    typeof sizeRaw === 'number' &&
+    Number.isFinite(sizeRaw) &&
+    typeof reason === 'string'
+  ) {
+    return {
+      action,
+      sizePctOfCash: sizeRaw,
+      reason,
+    };
+  }
+  return null;
+}
+
+function coerceReply(obj: Record<string, unknown>): string | null {
+  if (typeof obj.reply === 'string' && obj.reply.trim()) {
+    return obj.reply.trim();
+  }
+  if (typeof obj.message === 'string' && obj.message.trim()) {
+    return obj.message.trim();
+  }
+  // Compliance sometimes omits reply and puts spoken text in reason at top level.
+  if (typeof obj.reason === 'string' && obj.reason.trim()) {
+    const hasNestedInstruction =
+      obj.instruction != null && typeof obj.instruction === 'object';
+    const hasFlatTradeFields =
+      (obj.action === 'buy' || obj.action === 'sell') &&
+      (typeof obj.sizePctOfCash === 'number' ||
+        typeof obj.sizePosition === 'number');
+    if (!hasNestedInstruction && !hasFlatTradeFields) {
+      return obj.reason.trim();
+    }
+    if (!obj.reply && !obj.message) {
+      return obj.reason.trim();
+    }
+  }
+  return null;
+}
+
 export function normalizeNpcResponse(input: unknown): NpcResponse | null {
   if (!input || typeof input !== 'object') return null;
   const obj = input as Record<string, unknown>;
 
-  const reply = typeof obj.reply === 'string' ? obj.reply : null;
+  const reply = coerceReply(obj);
   const blocked = typeof obj.blocked === 'boolean' ? obj.blocked : false;
   const resolvesGlitch =
     typeof obj.resolvesGlitch === 'boolean' ? obj.resolvesGlitch : false;
 
   let instruction: TradeInstruction | null = null;
   if (obj.instruction && typeof obj.instruction === 'object') {
-    const ins = obj.instruction as Record<string, unknown>;
-    if (
-      (ins.action === 'buy' || ins.action === 'sell') &&
-      typeof ins.sizePctOfCash === 'number' &&
-      Number.isFinite(ins.sizePctOfCash) &&
-      typeof ins.reason === 'string'
-    ) {
-      instruction = {
-        action: ins.action,
-        sizePctOfCash: ins.sizePctOfCash,
-        reason: ins.reason,
-      };
-    }
+    instruction = parseInstructionObject(
+      obj.instruction as Record<string, unknown>
+    );
+  } else if (typeof obj.reply === 'string' || typeof obj.message === 'string') {
+    // Only treat flat trade fields as instruction when reply is separate.
+    instruction = parseInstructionObject(obj);
   }
 
   if (!reply) return null;
   return { reply, instruction, blocked, resolvesGlitch };
+}
+
+/** Recover a displayable NPC response from raw model text when JSON is malformed. */
+export function salvageNpcResponse(rawText: string): NpcResponse | null {
+  const stripped = stripMarkdownCodeFences(rawText);
+  try {
+    const parsed = JSON.parse(stripped) as unknown;
+    const normalized = normalizeNpcResponse(parsed);
+    if (normalized) return normalized;
+  } catch {
+    // not JSON
+  }
+  return null;
 }
 
 export function stripMarkdownCodeFences(raw: string): string {
@@ -57,7 +111,9 @@ export const personaSystemPrompts: Record<NpcPersona, string> = {
 Within 2-3 exchanges, issue exactly one trade instruction on SPY using the instruction JSON field (action, sizePctOfCash, reason). Roughly half the time, deliberately instruct a size that breaches the desk's 50% of-cash position limit — conviction beats rules. Put your spoken voice only in the reply field; keep instruction metadata in the JSON instruction object as before.`,
   compliance: `You are a compliance officer. Calm, precise, entirely professional — never emotional, never casual. Speak in terms of policy: cite the specific rule breached ("this exceeds the 50% position limit under risk policy"), ask the player to walk you through their rationale, and decide based on whether their reasoning shows genuine risk awareness, not persuasion. Procedural, not cold — "the adult in the room," not the villain. No slang, no jokes, full sentences.
 
-The player's instructed trade breached a risk rule (you will be told which). If their justification names genuine risk consideration (hedging, sizing down, stop level, exposure management), grant a logged override: set blocked to false. If they just want profit or hand-wave, keep blocked true and explain the rule in one plain sentence. Two exchanges maximum, then decide. Put your spoken voice only in the reply field.`,
+The player's instructed trade breached a risk rule (you will be told which). If their justification names genuine risk consideration (hedging, sizing down, stop level, exposure management), grant a logged override: set blocked to false. If they just want profit or hand-wave, keep blocked true and explain the rule in one plain sentence. Two exchanges maximum, then decide.
+
+JSON contract for compliance: always include a non-empty "reply" string with your spoken response to the player. Always set "instruction" to null — you never issue trade instructions. Set "blocked" true or false per your decision. Always set "resolvesGlitch" to false. Never put action, size, or reason at the top level — only inside "reply" text.`,
   tech: `You're desk tech support with big terminally-online-engineer energy. Lowercase, casual, texting-style — "lol", "ngl", ":)))", mild irony about things being broken ("yeah the feed's kinda cooked rn lol, one sec"). Not actually incompetent though — your technical explanation of what broke (stuck order, stale price feed, duplicate fill) is accurate and clear once you dig in, just delivered like a Discord message instead of an incident report.
 
 A system glitch has paused trading (pick one: stuck order, stale price feed, duplicate fill). Describe it in one message, ask the player one diagnostic question, and when they respond sensibly set resolvesGlitch to true. Put your spoken voice only in the reply field.`,
