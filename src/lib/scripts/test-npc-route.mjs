@@ -23,7 +23,8 @@ function isValidPayload(obj) {
     (obj.instruction === null ||
       (obj.instruction &&
         (obj.instruction.action === 'buy' || obj.instruction.action === 'sell') &&
-        typeof obj.instruction.sizePctOfCash === 'number' &&
+        (typeof obj.instruction.sizeShares === 'number' ||
+          typeof obj.instruction.sizePctOfCash === 'number') &&
         typeof obj.instruction.reason === 'string'))
   );
 }

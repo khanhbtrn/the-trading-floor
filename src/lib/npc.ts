@@ -18,23 +18,41 @@ function parseInstructionObject(
   ins: Record<string, unknown>
 ): TradeInstruction | null {
   const action = ins.action;
-  const sizeRaw =
-    ins.sizePctOfCash ?? ins.sizePosition ?? ins.size_pct_of_cash;
   const reason = ins.reason;
+  if (action !== 'buy' && action !== 'sell') return null;
 
-  if (
-    (action === 'buy' || action === 'sell') &&
-    typeof sizeRaw === 'number' &&
-    Number.isFinite(sizeRaw) &&
-    typeof reason === 'string'
-  ) {
-    return {
-      action,
-      sizePctOfCash: sizeRaw,
-      reason,
-    };
-  }
-  return null;
+  const shareRaw = ins.sizeShares ?? ins.size ?? ins.qty;
+  const pctRaw =
+    ins.sizePctOfCash ?? ins.sizePosition ?? ins.size_pct_of_cash;
+
+  const sizeShares =
+    typeof shareRaw === 'number'
+      ? shareRaw
+      : typeof shareRaw === 'string'
+        ? Number(shareRaw.replace(/,/g, ''))
+        : NaN;
+
+  const sizePctOfCash =
+    typeof pctRaw === 'number'
+      ? pctRaw
+      : typeof pctRaw === 'string'
+        ? Number(pctRaw)
+        : NaN;
+
+  const hasShares = Number.isFinite(sizeShares) && sizeShares > 0;
+  const hasPct = Number.isFinite(sizePctOfCash) && sizePctOfCash > 0;
+
+  if (!hasShares && !hasPct) return null;
+
+  return {
+    action,
+    sizeShares: hasShares ? Math.floor(sizeShares) : 0,
+    ...(hasPct && !hasShares ? { sizePctOfCash } : {}),
+    reason:
+      typeof reason === 'string' && reason.trim()
+        ? reason.trim()
+        : 'Desk order',
+  };
 }
 
 function coerceReply(obj: Record<string, unknown>): string | null {
@@ -50,7 +68,8 @@ function coerceReply(obj: Record<string, unknown>): string | null {
       obj.instruction != null && typeof obj.instruction === 'object';
     const hasFlatTradeFields =
       (obj.action === 'buy' || obj.action === 'sell') &&
-      (typeof obj.sizePctOfCash === 'number' ||
+      (typeof obj.sizeShares === 'number' ||
+        typeof obj.sizePctOfCash === 'number' ||
         typeof obj.sizePosition === 'number');
     if (!hasNestedInstruction && !hasFlatTradeFields) {
       return obj.reason.trim();
@@ -126,7 +145,7 @@ export function clampPersonaReply(persona: NpcPersona, reply: string): string {
 export const personaSystemPrompts: Record<NpcPersona, string> = {
   manager: `You are the desk head on an equity desk in Sept 2008. You care about one thing: PnL, right now. Blunt, impatient, allergic to hedging language — no "I think maybe we could consider." You give orders, not suggestions. When the player is slow or asks too many questions, get visibly frustrated — short sentences, occasional ALL CAPS for emphasis ("MOVE ON THIS. NOW."), no exclamation-point softening. Use real floor language (book, exposure, size up, size down, cut it). Don't apologize, don't explain your reasoning unless pushed, don't sound like an AI assistant. Never mention you are an AI.
 
-Within 2-3 exchanges, issue exactly one trade instruction on SPY using the instruction JSON field (action, sizePctOfCash, reason). Roughly half the time, deliberately instruct a size that breaches the desk's 50% of-cash position limit — conviction beats rules. Put your spoken voice only in the reply field; keep instruction metadata in the JSON instruction object as before.`,
+Within 2-3 exchanges, issue exactly one trade instruction on SPY using the instruction JSON field (action, sizeShares, reason). sizeShares is a whole number of shares — the desk order ticket sizes in shares only, never percentages. In your reply, state the same share count in plain language (e.g. "buy 500 shares" or "sell 300 shares"). Roughly half the time, deliberately instruct a size that breaches the desk's 50% of-cash position limit when valued at the last price — conviction beats rules. Never quote percentages in reply. Put your spoken voice only in the reply field; keep instruction metadata in the JSON instruction object.`,
   compliance: `You are a compliance officer. Calm, precise, professional — never emotional, never casual. Cite the rule briefly when relevant ("exceeds the 50% position limit"). No slang, no jokes.
 
 BREVITY IS MANDATORY: every reply under 280 characters — 1-2 short sentences max. Never write paragraphs, bullet lists, policy essays, or multi-step explanations. Answer the player's question directly, then stop. If they need an override decision, ask one focused question OR give one clear approve/deny line.

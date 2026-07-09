@@ -392,6 +392,14 @@
   cursor: not-allowed;
 }
 
+.tdv-btn-buy--active:not(:disabled) {
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.35), 0 0 18px rgba(74, 222, 128, 0.45);
+}
+
+.tdv-btn-sell--active:not(:disabled) {
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.35), 0 0 18px rgba(248, 113, 113, 0.45);
+}
+
 .tdv-controls-bar {
   display: flex;
   align-items: center;

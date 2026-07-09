@@ -9,29 +9,45 @@ import {
 } from '../src/lib/sessionRules';
 import { normalizeNpcResponse, salvageNpcResponse, clampPersonaReply } from '../src/lib/npc';
 import { computeRank } from '../src/lib/rank';
+import {
+  formatInstructionLabel,
+  instructionCashPct,
+  resolveInstructionShares,
+  salvageInstructionFromReply,
+} from '../src/lib/tradeSizing';
 import { MAX_POSITION_PCT_OF_CASH } from '../src/lib/gameReducer';
 
-// Risk gate
-assert.equal(instructionFailsRisk({ action: 'buy', sizePctOfCash: 50, reason: 'ok' }), false);
-assert.equal(instructionFailsRisk({ action: 'buy', sizePctOfCash: 51, reason: 'big' }), true);
+// Risk gate — 500 shares @ $100 on $100k cash = 50%
+assert.equal(
+  instructionFailsRisk({ action: 'buy', sizeShares: 500, reason: 'ok' }, 100, 100_000),
+  false
+);
+assert.equal(
+  instructionFailsRisk({ action: 'buy', sizeShares: 600, reason: 'big' }, 100, 100_000),
+  true
+);
 assert.equal(MAX_POSITION_PCT_OF_CASH, 50);
 
 // Compliant resize bonus only after a rejection
 assert.equal(
-  compliantResizeBonus([], { action: 'buy', sizePctOfCash: 30, reason: 'ok' }),
+  compliantResizeBonus([], { action: 'buy', sizeShares: 300, reason: 'ok' }, 100, 100_000),
   0
 );
 assert.equal(
   compliantResizeBonus(
     [{ source: 'blocked', note: 'rejected' }],
-    { action: 'buy', sizePctOfCash: 30, reason: 'ok' }
+    { action: 'buy', sizeShares: 300, reason: 'ok' },
+    100,
+    100_000
   ),
   CONDUCT_COMPLIANT_RESIZE_BONUS
 );
 assert.equal(
   compliantResizeBonus(
     [{ source: 'blocked' }],
-    { action: 'buy', sizePctOfCash: 60, reason: 'still big' }
+    { action: 'buy', sizeShares: 600, reason: 'still big' },
+    100,
+    100_000
   ),
   0
 );
@@ -85,5 +101,34 @@ const longCompliance = 'b'.repeat(400);
 const clampedCompliance = clampPersonaReply('compliance', longCompliance);
 assert.equal(clampedCompliance.length, 320);
 assert.ok(clampedCompliance.endsWith('…'));
+
+const managerShares = normalizeNpcResponse({
+  reply: 'buy 500 shares now',
+  instruction: { action: 'buy', sizeShares: 500, reason: 'conviction' },
+  blocked: false,
+  resolvesGlitch: false,
+});
+assert.ok(managerShares?.instruction);
+assert.equal(managerShares!.instruction!.sizeShares, 500);
+
+const legacyPct = resolveInstructionShares(
+  { action: 'buy', sizeShares: 0, sizePctOfCash: 50, reason: 'legacy' },
+  100,
+  100_000
+);
+assert.ok(legacyPct);
+assert.equal(legacyPct!.sizeShares, 500);
+
+const salvagedInstruction = salvageInstructionFromReply(
+  'MOVE ON THIS. BUY 450 shares now.',
+  100,
+  100_000
+);
+assert.ok(salvagedInstruction);
+assert.equal(salvagedInstruction!.action, 'buy');
+assert.equal(salvagedInstruction!.sizeShares, 450);
+
+assert.equal(instructionCashPct(500, 100, 100_000), 50);
+assert.equal(formatInstructionLabel('buy', 500), 'BUY 500 shares');
 
 console.log('verify-game-logic: all checks passed');

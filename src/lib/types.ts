@@ -11,7 +11,9 @@ export interface Position {
 
 export interface TradeInstruction {
   action: TradeAction;
-  sizePctOfCash: number;
+  sizeShares: number;
+  /** Legacy AI field — resolved to sizeShares at apply time. */
+  sizePctOfCash?: number;
   reason: string;
 }
 

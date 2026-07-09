@@ -24,8 +24,10 @@ export interface TradingDeskViewProps {
   glitchLocked?: boolean;
   buyDisabled?: boolean;
   sellDisabled?: boolean;
-  onBuy?: (size: number) => void;
-  onSell?: (size: number) => void;
+  instructionSizeShares?: number | null;
+  instructionAction?: 'buy' | 'sell' | null;
+  onBuy?: (sizeShares: number) => void;
+  onSell?: (sizeShares: number) => void;
 }
 
 const VBW = 1000;
@@ -68,10 +70,12 @@ export function TradingDeskView({
   glitchLocked = false,
   buyDisabled = false,
   sellDisabled = false,
+  instructionSizeShares = null,
+  instructionAction = null,
   onBuy,
   onSell,
 }: TradingDeskViewProps) {
-  const [size, setSize] = useState(1);
+  const [size, setSize] = useState(100);
   const [priceKey, setPriceKey] = useState(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [lineDrawKey, setLineDrawKey] = useState(0);
@@ -81,6 +85,22 @@ export function TradingDeskView({
     : null;
   const prevLastPriceRef = useRef<number | null>(null);
   const prevHistoryLen = useRef(priceHistory.length);
+
+  const prevInstructionShares = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (
+      instructionSizeShares != null &&
+      instructionSizeShares > 0 &&
+      instructionSizeShares !== prevInstructionShares.current
+    ) {
+      setSize(instructionSizeShares);
+      prevInstructionShares.current = instructionSizeShares;
+    }
+    if (instructionSizeShares == null) {
+      prevInstructionShares.current = null;
+    }
+  }, [instructionSizeShares]);
 
   useEffect(() => {
     if (prevLastPriceRef.current !== lastPrice) {
@@ -168,7 +188,10 @@ export function TradingDeskView({
   };
 
   const controlsLocked = disabled || glitchLocked;
-  const chipVals = [1, 5, 10, 25];
+  const sizeLocked =
+    instructionSizeShares != null && instructionSizeShares > 0;
+  const chipVals = [100, 250, 500, 1000];
+  const sizeInvalid = size <= 0;
 
   return (
     <div className="tdv-root">
@@ -370,15 +393,17 @@ export function TradingDeskView({
               <div className="tdv-pixel" style={{ fontSize: 10, color: '#67e8f9' }}>ORDER TICKET</div>
 
               <div>
-                <div className="tdv-pixel tdv-stat-label">SIZE</div>
+                <div className="tdv-pixel tdv-stat-label">SIZE (SHARES)</div>
                 <input
                   className="tdv-size-input"
                   type="number"
-                  min={0}
+                  min={1}
                   step={1}
                   value={size}
-                  disabled={controlsLocked}
-                  onChange={(e) => setSize(Math.max(0, Number(e.target.value) || 0))}
+                  disabled={controlsLocked || sizeLocked}
+                  onChange={(e) =>
+                    setSize(Math.max(1, Math.floor(Number(e.target.value) || 0)))
+                  }
                 />
               </div>
 
@@ -388,11 +413,11 @@ export function TradingDeskView({
                     key={v}
                     type="button"
                     className={`tdv-chip ${size === v ? 'active' : ''}`}
-                    disabled={controlsLocked}
+                    disabled={controlsLocked || sizeLocked}
                     whileTap={{ scale: 0.92 }}
                     onClick={() => setSize(v)}
                   >
-                    x{v}
+                    {v >= 1000 ? `${v / 1000}k` : v}
                   </motion.button>
                 ))}
               </div>
@@ -400,9 +425,13 @@ export function TradingDeskView({
               <div className="tdv-trade-buttons">
                 <motion.button
                   type="button"
-                  className="tdv-btn-buy"
-                  disabled={controlsLocked || buyDisabled || size <= 0}
-                  whileTap={controlsLocked || buyDisabled || size <= 0 ? undefined : { scale: 0.93 }}
+                  className={`tdv-btn-buy ${instructionAction === 'buy' ? 'tdv-btn-buy--active' : ''}`}
+                  disabled={controlsLocked || buyDisabled || sizeInvalid}
+                  whileTap={
+                    controlsLocked || buyDisabled || sizeInvalid
+                      ? undefined
+                      : { scale: 0.93 }
+                  }
                   transition={{ type: 'spring', stiffness: 500, damping: 28 }}
                   onClick={() => onBuy?.(size)}
                 >
@@ -410,10 +439,10 @@ export function TradingDeskView({
                 </motion.button>
                 <motion.button
                   type="button"
-                  className="tdv-btn-sell"
-                  disabled={controlsLocked || sellDisabled || size <= 0 || qty <= 0}
+                  className={`tdv-btn-sell ${instructionAction === 'sell' ? 'tdv-btn-sell--active' : ''}`}
+                  disabled={controlsLocked || sellDisabled || sizeInvalid}
                   whileTap={
-                    controlsLocked || sellDisabled || size <= 0 || qty <= 0
+                    controlsLocked || sellDisabled || sizeInvalid
                       ? undefined
                       : { scale: 0.93 }
                   }
