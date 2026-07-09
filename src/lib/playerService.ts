@@ -1,4 +1,4 @@
-import { getSupabaseBrowser, type PlayerRow } from '@/lib/supabase';
+import type { PlayerRow } from '@/lib/supabase';
 import type { Rank } from '@/lib/types';
 
 const PLAYER_ID_KEY = 'trading-floor-player-id';
@@ -23,61 +23,63 @@ export function clearStoredPlayerId(): void {
 export async function createPlayer(
   playerName: string
 ): Promise<PlayerServiceResult<PlayerRow>> {
-  const supabase = getSupabaseBrowser();
-  if (!supabase) {
-    return {
-      ok: false,
-      error: 'Supabase is not configured (missing NEXT_PUBLIC_SUPABASE_URL or ANON_KEY).',
-    };
-  }
-
   const trimmed = playerName.trim();
   if (!trimmed) {
     return { ok: false, error: 'Name is required.' };
   }
 
-  const { data, error } = await supabase
-    .from('players')
-    .insert({ player_name: trimmed })
-    .select()
-    .single();
+  try {
+    const res = await fetch('/api/players', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ playerName: trimmed }),
+    });
 
-  if (error || !data) {
+    const data = (await res.json()) as { player?: PlayerRow; error?: string };
+
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? `Create failed (${res.status})` };
+    }
+
+    if (!data.player) {
+      return { ok: false, error: 'No player returned from server.' };
+    }
+
+    storePlayerId(data.player.id);
+    return { ok: true, data: data.player };
+  } catch (e) {
     return {
       ok: false,
-      error: error?.message ?? 'Failed to create player profile.',
+      error: e instanceof Error ? e.message : 'Network error',
     };
   }
-
-  storePlayerId(data.id);
-  return { ok: true, data: data as PlayerRow };
 }
 
 export async function fetchPlayer(
   playerId: string
 ): Promise<PlayerServiceResult<PlayerRow>> {
-  const supabase = getSupabaseBrowser();
-  if (!supabase) {
+  try {
+    const res = await fetch(
+      `/api/players?id=${encodeURIComponent(playerId.trim())}`
+    );
+
+    const data = (await res.json()) as { player?: PlayerRow; error?: string };
+
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? `Fetch failed (${res.status})` };
+    }
+
+    if (!data.player) {
+      return { ok: false, error: 'Player profile not found.' };
+    }
+
+    return { ok: true, data: data.player };
+  } catch (e) {
     return {
       ok: false,
-      error: 'Supabase is not configured (missing NEXT_PUBLIC_SUPABASE_URL or ANON_KEY).',
+      error: e instanceof Error ? e.message : 'Network error',
     };
   }
-
-  const { data, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('id', playerId)
-    .single();
-
-  if (error || !data) {
-    return {
-      ok: false,
-      error: error?.message ?? 'Player profile not found.',
-    };
-  }
-
-  return { ok: true, data: data as PlayerRow };
 }
 
 export function playerRowToRank(rank: string): Rank {

@@ -23,17 +23,13 @@ create table if not exists public.games (
 alter table public.players enable row level security;
 alter table public.games enable row level security;
 
+-- App writes go through Vercel API routes using SUPABASE_SERVICE_ROLE_KEY (bypasses RLS).
+-- These policies allow read-only anon access if needed; inserts are server-side only.
+
+drop policy if exists "players read all" on public.players;
 create policy "players read all"
   on public.players for select using (true);
 
-create policy "players insert anon"
-  on public.players for insert with check (true);
-
-create policy "players update all"
-  on public.players for update using (true);
-
-create policy "games insert anon"
-  on public.games for insert with check (true);
-
+drop policy if exists "games read all" on public.games;
 create policy "games read all"
   on public.games for select using (true);
