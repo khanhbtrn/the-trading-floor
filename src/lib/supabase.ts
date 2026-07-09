@@ -79,6 +79,7 @@ export interface PlayerRow {
   rank: string;
   career_pnl: number;
   sessions_played: number;
+  intro_completed?: boolean;
   created_at?: string;
   updated_at?: string;
 }
