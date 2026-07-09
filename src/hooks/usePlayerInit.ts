@@ -90,7 +90,7 @@ export function usePlayerInit() {
     playerLoading,
     playerError,
     handleEnterName,
-    handleLogout,
+    logoutPlayer: handleLogout,
     needsLogin: !playerReady,
     needsIntro: playerReady && !introCompleted,
     finishIntro,

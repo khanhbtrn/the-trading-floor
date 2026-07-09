@@ -78,6 +78,7 @@ export async function POST(request: Request) {
       rank: finalRank,
       career_pnl: careerPnL,
       sessions_played: sessionsPlayed,
+      intro_completed: true,
       updated_at: new Date().toISOString(),
     })
     .eq('id', playerId.trim());
