@@ -24,6 +24,9 @@ export interface TradingDeskViewProps {
   glitchLocked?: boolean;
   buyDisabled?: boolean;
   sellDisabled?: boolean;
+  suggestedSize?: number;
+  instructionLabel?: string | null;
+  lockReason?: string | null;
   onBuy?: (size: number) => void;
   onSell?: (size: number) => void;
 }
@@ -68,6 +71,9 @@ export function TradingDeskView({
   glitchLocked = false,
   buyDisabled = false,
   sellDisabled = false,
+  suggestedSize,
+  instructionLabel,
+  lockReason,
   onBuy,
   onSell,
 }: TradingDeskViewProps) {
@@ -95,6 +101,12 @@ export function TradingDeskView({
       prevHistoryLen.current = priceHistory.length;
     }
   }, [priceHistory.length]);
+
+  useEffect(() => {
+    if (suggestedSize != null && suggestedSize > 0) {
+      setSize(suggestedSize);
+    }
+  }, [suggestedSize]);
 
   const chart = useMemo(() => {
     const n = priceHistory.length;
@@ -149,6 +161,7 @@ export function TradingDeskView({
   const lineColor = pnlPositive ? '#4ade80' : '#f87171';
   const lineGlow = pnlPositive ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.6)';
   const qty = position.qty || 0;
+  const isShort = qty < 0;
 
   let hi = hoverIndex;
   if (hi != null && (hi < 0 || hi >= chart.n)) hi = null;
@@ -352,6 +365,11 @@ export function TradingDeskView({
                 <div className="tdv-pixel tdv-stat-label">POSITION</div>
                 <div className="tdv-mono tdv-stat-value">
                   {(qty > 0 ? '+' : '') + qty + ' SH'}
+                  {isShort && (
+                    <span className="tdv-stat-sub" style={{ display: 'block' }}>
+                      SHORT
+                    </span>
+                  )}
                 </div>
                 <div className="tdv-mono tdv-stat-sub">
                   AVG ${fmt(position.avgPrice || 0)}
@@ -368,6 +386,17 @@ export function TradingDeskView({
               <div className="tdv-corner" style={{ top: -1, left: -1, borderTop: '2px solid', borderLeft: '2px solid' }} />
               <div className="tdv-corner" style={{ top: -1, right: -1, borderTop: '2px solid', borderRight: '2px solid' }} />
               <div className="tdv-pixel" style={{ fontSize: 10, color: '#67e8f9' }}>ORDER TICKET</div>
+
+              {instructionLabel && (
+                <p className="tdv-mono" style={{ fontSize: 10, color: '#a1a1aa', marginTop: 6 }}>
+                  {instructionLabel}
+                </p>
+              )}
+              {lockReason && controlsLocked && (
+                <p className="tdv-mono" style={{ fontSize: 9, color: '#fbbf24', marginTop: 4 }}>
+                  {lockReason}
+                </p>
+              )}
 
               <div>
                 <div className="tdv-pixel tdv-stat-label">SIZE</div>
@@ -411,9 +440,9 @@ export function TradingDeskView({
                 <motion.button
                   type="button"
                   className="tdv-btn-sell"
-                  disabled={controlsLocked || sellDisabled || size <= 0 || qty <= 0}
+                  disabled={controlsLocked || sellDisabled || size <= 0}
                   whileTap={
-                    controlsLocked || sellDisabled || size <= 0 || qty <= 0
+                    controlsLocked || sellDisabled || size <= 0
                       ? undefined
                       : { scale: 0.93 }
                   }

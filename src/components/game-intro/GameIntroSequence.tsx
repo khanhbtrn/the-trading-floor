@@ -48,7 +48,7 @@ const STEPS: IntroStep[] = [
     kind: 'card',
     title: 'Your Job',
     body:
-      'Take the instruction. Execute when you can. When risk blocks a reckless ticket, how you respond — obey, escalate, or fight it — writes your career.',
+      'Take the instruction. Execute when you can. When risk blocks a reckless ticket, how you respond — obey, escalate, or fight it — writes your career. Expect a violent gap-down early in the tape.',
   },
   {
     id: 'clock-in',

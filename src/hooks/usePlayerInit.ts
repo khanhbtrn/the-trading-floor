@@ -1,9 +1,15 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useGame } from '@/context/GameProvider';
 import {
+  clearStoredPlayerId,
+  getStoredPlayerId,
+  setStoredPlayerId,
+} from '@/lib/playerStorage';
+import {
   completeIntro,
+  fetchPlayer,
   playerIntroCompleted,
   playerRowToRank,
   resumePlayerByName,
@@ -17,6 +23,7 @@ export function usePlayerInit() {
   const [introCompleted, setIntroCompleted] = useState(true);
   const [introCompleting, setIntroCompleting] = useState(false);
   const [sessionEpoch, setSessionEpoch] = useState(0);
+  const [restoringSession, setRestoringSession] = useState(true);
 
   const loadPlayerRow = useCallback(
     (row: {
@@ -35,6 +42,7 @@ export function usePlayerInit() {
         careerPnL: Number(row.career_pnl),
         sessionsPlayed: row.sessions_played ?? 0,
       });
+      setStoredPlayerId(row.id);
       setIntroCompleted(
         row.intro_completed === true || (row.sessions_played ?? 0) > 0
       );
@@ -43,6 +51,35 @@ export function usePlayerInit() {
     },
     [dispatch]
   );
+
+  useEffect(() => {
+    let active = true;
+
+    const restore = async () => {
+      const storedId = getStoredPlayerId();
+      if (!storedId) {
+        if (active) setRestoringSession(false);
+        return;
+      }
+
+      setPlayerLoading(true);
+      const result = await fetchPlayer(storedId);
+      if (!active) return;
+
+      if (result.ok) {
+        loadPlayerRow(result.data);
+      } else {
+        clearStoredPlayerId();
+      }
+      setPlayerLoading(false);
+      setRestoringSession(false);
+    };
+
+    void restore();
+    return () => {
+      active = false;
+    };
+  }, [loadPlayerRow]);
 
   const handleEnterName = async (name: string) => {
     setPlayerLoading(true);
@@ -78,6 +115,7 @@ export function usePlayerInit() {
   }, [state.playerId]);
 
   const handleLogout = useCallback(() => {
+    clearStoredPlayerId();
     dispatch({ type: 'LOGOUT' });
     setPlayerReady(false);
     setIntroCompleted(true);
@@ -87,11 +125,11 @@ export function usePlayerInit() {
 
   return {
     playerReady,
-    playerLoading,
+    playerLoading: playerLoading || restoringSession,
     playerError,
     handleEnterName,
     logoutPlayer: handleLogout,
-    needsLogin: !playerReady,
+    needsLogin: !playerReady && !restoringSession,
     needsIntro: playerReady && !introCompleted,
     finishIntro,
     introCompleting,
