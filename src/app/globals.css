@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Press+Start+2P&display=swap');
+
+@layer base {
+  body {
+    @apply bg-[#050607] font-mono text-zinc-100 antialiased;
+  }
+}

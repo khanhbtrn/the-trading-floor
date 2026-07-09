@@ -1,0 +1,2 @@
+# Scenario CSV data lands in Hour 1:30 (Data + API key setup).
+# Expected: scenario-2008.csv with columns [date, open, high, low, close, volume]
