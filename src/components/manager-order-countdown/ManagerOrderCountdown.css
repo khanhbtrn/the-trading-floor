@@ -46,3 +46,37 @@
   font-size: 9px;
   color: #71717a;
 }
+
+.manager-countdown__call {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 12px;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--manager-accent);
+  background: color-mix(in srgb, var(--manager-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--manager-accent) 45%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.manager-countdown__call:hover {
+  background: color-mix(in srgb, var(--manager-accent) 20%, transparent);
+  border-color: var(--manager-accent);
+}
+
+.manager-countdown__call--live {
+  animation: manager-countdown-call-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes manager-countdown-call-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--manager-accent) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--manager-accent) 15%, transparent);
+  }
+}

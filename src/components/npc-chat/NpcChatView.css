@@ -368,6 +368,46 @@
   gap: 10px;
 }
 
+.npc-call-btn {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.npc-call-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.22);
+  box-shadow: 0 0 16px rgba(248, 113, 113, 0.35);
+}
+
+.npc-call-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.npc-call-btn--live {
+  animation: npc-call-pulse 1s ease-in-out infinite;
+  color: #fef08a;
+  border-color: #facc15;
+}
+
+@keyframes npc-call-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(250, 204, 21, 0.25); }
+  50% { box-shadow: 0 0 18px rgba(250, 204, 21, 0.55); }
+}
+
+.npc-embed .npc-call-btn {
+  font-size: 7px;
+  padding: 8px 10px;
+}
+
 .npc-input-wrap {
   flex: 1;
   position: relative;

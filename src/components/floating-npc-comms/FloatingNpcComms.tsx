@@ -200,6 +200,10 @@ export function FloatingNpcComms({ npcs, onChatInputActiveChange }: FloatingNpcC
                     showFreeTextInput={openNpc.showFreeTextInput !== false}
                     onSend={openNpc.onSend}
                     onMicPress={openNpc.onMicPress}
+                    showCallButton={openNpc.showCallButton}
+                    onCallPress={openNpc.onCallPress}
+                    callListening={openNpc.callListening}
+                    callLabel={openNpc.callLabel}
                     onUserReply={openNpc.onUserReply}
                     onInputActiveChange={onChatInputActiveChange}
                   />

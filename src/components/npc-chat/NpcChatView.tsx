@@ -30,6 +30,10 @@ export interface NpcChatViewProps {
   proceedLabel?: string;
   onSend?: (text: string) => void;
   onMicPress?: () => void;
+  showCallButton?: boolean;
+  onCallPress?: () => void;
+  callListening?: boolean;
+  callLabel?: string;
   showFreeTextInput?: boolean;
   onUserReply?: () => void;
   onInputActiveChange?: (active: boolean) => void;
@@ -52,6 +56,10 @@ export function NpcChatView({
   proceedLabel = 'Proceed',
   onSend,
   onMicPress,
+  showCallButton = false,
+  onCallPress,
+  callListening = false,
+  callLabel,
   showFreeTextInput = false,
   onUserReply,
   onInputActiveChange,
@@ -173,6 +181,17 @@ export function NpcChatView({
             </button>
           ))}
         </div>
+      )}
+
+      {showCallButton && onCallPress && !showChoices && !showProceed && (
+        <button
+          type="button"
+          className={`npc-call-btn ${callListening ? 'npc-call-btn--live' : ''}`}
+          disabled={isLoading}
+          onClick={onCallPress}
+        >
+          {callListening ? 'LISTENING…' : callLabel ?? `CALL ${npcTag}`}
+        </button>
       )}
 
       {showFreeTextInput && !showChoices && !showProceed && (

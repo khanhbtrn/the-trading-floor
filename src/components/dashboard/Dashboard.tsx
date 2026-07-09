@@ -37,6 +37,8 @@ import { computeRank, RANK_ORDER } from '@/lib/rank';
 import { getScenarioById, scenarios } from '@/lib/scenarios';
 import { endSession, fetchLeaderboard } from '@/lib/sessionApi';
 import type { LeaderboardEntry, Rank } from '@/lib/types';
+import { useSpeechInput } from '@/lib/useSpeechInput';
+import { speakNpcReply } from '@/lib/npcVoice';
 
 const TICK_MS_NORMAL = 1000;
 const TICK_MS_SHOCK = 200;
@@ -120,6 +122,8 @@ export function Dashboard() {
   const [endingSession, setEndingSession] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const prevRankRef = useRef(state.rank);
+  const managerVoiceReply = useRef(false);
+  const techVoiceReply = useRef(false);
 
   const scenario = state.currentScenarioId
     ? getScenarioById(state.currentScenarioId)
@@ -448,6 +452,11 @@ export function Dashboard() {
         setManagerMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
         setManagerUnread((c) => c + 1);
 
+        if (managerVoiceReply.current) {
+          speakNpcReply(npc.reply);
+          managerVoiceReply.current = false;
+        }
+
         if (npc.instruction) {
           setOverrideGranted(false);
           dispatch({
@@ -562,6 +571,11 @@ export function Dashboard() {
         setTechMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
         setTechUnread((c) => c + 1);
 
+        if (techVoiceReply.current) {
+          speakNpcReply(npc.reply);
+          techVoiceReply.current = false;
+        }
+
         if (npc.resolvesGlitch) {
           dispatch({
             type: 'PATCH',
@@ -580,6 +594,32 @@ export function Dashboard() {
     },
     [techMessages, dispatch, state.auditTrail, state.glitchActive, tick, price, rows, state.position.qty, state.cash, state.pnl]
   );
+
+  const {
+    speechSupported: managerSpeechSupported,
+    startListening: startManagerListen,
+    listening: managerCallListening,
+  } = useSpeechInput((text) => void sendManager(text));
+
+  const {
+    speechSupported: techSpeechSupported,
+    startListening: startTechListen,
+    listening: techCallListening,
+  } = useSpeechInput((text) => void sendTech(text));
+
+  const startManagerCall = useCallback(() => {
+    managerVoiceReply.current = true;
+    startManagerListen();
+  }, [startManagerListen]);
+
+  const startTechCall = useCallback(() => {
+    techVoiceReply.current = true;
+    startTechListen();
+  }, [startTechListen]);
+
+  const managerInRush =
+    orderCountdownActive || managerUrgent || marketShockActive;
+  const techInRush = state.glitchActive;
 
   const tradeUnlocked =
     !!state.currentInstruction && !state.blocked && !state.glitchActive;
@@ -949,6 +989,9 @@ export function Dashboard() {
           visible={orderCountdownActive}
           remainingMs={orderCountdown.remainingMs}
           totalMs={orderCountdown.totalMs}
+          showCallButton={managerInRush && managerSpeechSupported}
+          onCallPress={startManagerCall}
+          callListening={managerCallListening}
         />
       )}
       {state.currentInstruction && (
@@ -975,6 +1018,10 @@ export function Dashboard() {
       error: managerError,
       highlighted: managerGreyed,
       showFreeTextInput: true,
+      showCallButton: managerInRush && managerSpeechSupported,
+      onCallPress: startManagerCall,
+      callListening: managerCallListening,
+      callLabel: 'CALL BIG BUCK BRO',
       onSend: (text: string) => void sendManager(text),
       onClearUnread: () => setManagerUnread(0),
       footerExtra: state.currentInstruction ? (
@@ -983,6 +1030,9 @@ export function Dashboard() {
             visible={orderCountdownActive}
             remainingMs={orderCountdown.remainingMs}
             totalMs={orderCountdown.totalMs}
+            showCallButton={managerInRush && managerSpeechSupported}
+            onCallPress={startManagerCall}
+            callListening={managerCallListening}
           />
           <p className="font-mono text-[9px] text-orange-400/80">
             {state.currentInstruction.action.toUpperCase()}{' '}
@@ -1014,6 +1064,10 @@ export function Dashboard() {
       unreadCount: techUnread,
       error: techError,
       showFreeTextInput: true,
+      showCallButton: techInRush && techSpeechSupported,
+      onCallPress: startTechCall,
+      callListening: techCallListening,
+      callLabel: 'CALL TECH',
       onSend: (text: string) => void sendTech(text),
       onClearUnread: () => setTechUnread(0),
     },
