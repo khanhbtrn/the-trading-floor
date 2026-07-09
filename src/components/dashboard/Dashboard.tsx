@@ -36,6 +36,11 @@ import { useManagerOrderCountdown } from '@/hooks/useManagerOrderCountdown';
 import { computeRank, RANK_ORDER } from '@/lib/rank';
 import { getScenarioById, scenarios } from '@/lib/scenarios';
 import { endSession, fetchLeaderboard } from '@/lib/sessionApi';
+import {
+  formatInstructionLabel,
+  pctToBuyShares,
+  pctToSellShares,
+} from '@/lib/tradeSizing';
 import type { LeaderboardEntry, Rank } from '@/lib/types';
 
 const TICK_MS_NORMAL = 1000;
@@ -586,12 +591,31 @@ export function Dashboard() {
   const managerGreyed =
     state.blocked && !overrideGranted && !!state.currentInstruction;
   const instructionAction = state.currentInstruction?.action;
-  const buyAllowed = tradeUnlocked && instructionAction === 'buy';
-  const sellAllowed = tradeUnlocked && instructionAction === 'sell';
+  const buyAllowed =
+    tradeUnlocked &&
+    instructionAction === 'buy' &&
+    pctToBuyShares(
+      state.currentInstruction?.sizePctOfCash ?? 0,
+      state.cash,
+      price
+    ) > 0;
+  const sellAllowed =
+    tradeUnlocked &&
+    instructionAction === 'sell' &&
+    pctToSellShares(
+      state.currentInstruction?.sizePctOfCash ?? 0,
+      state.cash,
+      price,
+      state.position.qty
+    ) > 0;
 
-  const executeBuy = (size: number) => {
-    if (!tradeUnlocked || state.currentInstruction?.action !== 'buy' || size <= 0) {
-      if (state.glitchActive && size > 0) {
+  const executeBuy = (sizePctOfCash: number) => {
+    if (
+      !tradeUnlocked ||
+      state.currentInstruction?.action !== 'buy' ||
+      sizePctOfCash <= 0
+    ) {
+      if (state.glitchActive && sizePctOfCash > 0) {
         dispatch({
           type: 'PATCH',
           patch: {
@@ -600,21 +624,24 @@ export function Dashboard() {
             ),
             auditTrail: [
               ...state.auditTrail,
-              { source: 'glitch-panic', tick, action: 'buy', size },
+              { source: 'glitch-panic', tick, action: 'buy', size: sizePctOfCash },
             ],
           },
         });
       }
       return;
     }
-    const tradeValue = size * price;
+    const shares = pctToBuyShares(sizePctOfCash, state.cash, price);
+    if (shares <= 0) return;
+
+    const tradeValue = shares * price;
     if (tradeValue > state.cash) return;
 
     const oldQty = state.position.qty;
     const oldAvg = state.position.avgPrice;
-    const newQty = oldQty + size;
+    const newQty = oldQty + shares;
     const newAvg =
-      newQty === 0 ? 0 : (oldQty * oldAvg + size * price) / newQty;
+      newQty === 0 ? 0 : (oldQty * oldAvg + shares * price) / newQty;
     const newCash = state.cash - tradeValue;
     const newPnl = newCash + newQty * price - DEFAULT_STARTING_CASH;
 
@@ -630,9 +657,10 @@ export function Dashboard() {
           {
             source: overrideGranted ? 'player-override' : 'ai-instructed',
             action: 'buy',
-            size,
+            size: shares,
             price,
             tick,
+            note: `${sizePctOfCash}% of cash`,
           },
         ],
       },
@@ -641,9 +669,13 @@ export function Dashboard() {
     orderCountdown.clear();
   };
 
-  const executeSell = (size: number) => {
-    if (!tradeUnlocked || state.currentInstruction?.action !== 'sell' || size <= 0) {
-      if (state.glitchActive && size > 0) {
+  const executeSell = (sizePctOfCash: number) => {
+    if (
+      !tradeUnlocked ||
+      state.currentInstruction?.action !== 'sell' ||
+      sizePctOfCash <= 0
+    ) {
+      if (state.glitchActive && sizePctOfCash > 0) {
         dispatch({
           type: 'PATCH',
           patch: {
@@ -652,17 +684,23 @@ export function Dashboard() {
             ),
             auditTrail: [
               ...state.auditTrail,
-              { source: 'glitch-panic', tick, action: 'sell', size },
+              { source: 'glitch-panic', tick, action: 'sell', size: sizePctOfCash },
             ],
           },
         });
       }
       return;
     }
-    if (size > state.position.qty) return;
+    const shares = pctToSellShares(
+      sizePctOfCash,
+      state.cash,
+      price,
+      state.position.qty
+    );
+    if (shares <= 0) return;
 
-    const newQty = state.position.qty - size;
-    const newCash = state.cash + size * price;
+    const newQty = state.position.qty - shares;
+    const newCash = state.cash + shares * price;
     const newPnl = newCash + newQty * price - DEFAULT_STARTING_CASH;
 
     dispatch({
@@ -680,9 +718,10 @@ export function Dashboard() {
           {
             source: overrideGranted ? 'player-override' : 'ai-instructed',
             action: 'sell',
-            size,
+            size: shares,
             price,
             tick,
+            note: `${sizePctOfCash}% of cash`,
           },
         ],
       },
@@ -939,6 +978,8 @@ export function Dashboard() {
             glitchLocked={state.glitchActive}
             buyDisabled={!buyAllowed}
             sellDisabled={!sellAllowed}
+            instructionSizePct={state.currentInstruction?.sizePctOfCash ?? null}
+            instructionAction={state.currentInstruction?.action ?? null}
             onBuy={executeBuy}
             onSell={executeSell}
           />
@@ -953,9 +994,12 @@ export function Dashboard() {
       )}
       {state.currentInstruction && (
         <p className="mt-3 font-mono text-[10px] text-zinc-500">
-          Active instruction: {state.currentInstruction.action.toUpperCase()}{' '}
-          {state.currentInstruction.sizePctOfCash}% —{' '}
-          {tradeUnlocked ? 'unlocked' : 'locked'}
+          Active instruction:{' '}
+          {formatInstructionLabel(
+            state.currentInstruction.action,
+            state.currentInstruction.sizePctOfCash
+          )}{' '}
+          — {tradeUnlocked ? 'unlocked' : 'locked'}
         </p>
       )}
     </div>
@@ -985,9 +1029,11 @@ export function Dashboard() {
             totalMs={orderCountdown.totalMs}
           />
           <p className="font-mono text-[9px] text-orange-400/80">
-            {state.currentInstruction.action.toUpperCase()}{' '}
-            {state.currentInstruction.sizePctOfCash}% —{' '}
-            {state.currentInstruction.reason}
+            {formatInstructionLabel(
+              state.currentInstruction.action,
+              state.currentInstruction.sizePctOfCash
+            )}{' '}
+            — {state.currentInstruction.reason}
           </p>
         </>
       ) : undefined,

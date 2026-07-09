@@ -47,7 +47,7 @@ async function callAnthropic(
       system:
         `${personaSystemPrompts[persona]}${extraSystemContext}\n` +
         'Return ONLY JSON with shape: ' +
-        '{"reply": string, "instruction": {"action":"buy"|"sell","sizePctOfCash": number,"reason": string} | null, "blocked": boolean, "resolvesGlitch": boolean}',
+        '{"reply": string, "instruction": {"action":"buy"|"sell","sizePctOfCash": number (1-100, percent of cash), "reason": string} | null, "blocked": boolean, "resolvesGlitch": boolean}',
       messages: messages.map((m) => ({
         role: m.role === 'user' ? 'user' : 'assistant',
         content: m.text,

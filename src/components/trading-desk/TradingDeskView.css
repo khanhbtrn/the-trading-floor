@@ -290,8 +290,41 @@
 .tdv-size-input:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-  border-color: rgba(113, 113, 122, 0.35);
   color: #71717a;
+}
+
+.tdv-size-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  background: #000;
+  border-radius: 3px;
+  padding-right: 8px;
+}
+
+.tdv-size-input-wrap:has(.tdv-size-input:disabled) {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(113, 113, 122, 0.35);
+}
+
+.tdv-size-input-wrap .tdv-size-input {
+  border: none;
+  background: transparent;
+}
+
+.tdv-size-suffix {
+  font-size: 14px;
+  color: #67e8f9;
+  flex-shrink: 0;
+}
+
+.tdv-shares-preview {
+  margin: -6px 0 0;
+  font-size: 9px;
+  color: #71717a;
+  line-height: 1.4;
 }
 
 .tdv-order-panel--glitch {
@@ -390,6 +423,14 @@
 .tdv-btn-sell:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.tdv-btn-buy--active:not(:disabled) {
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.35), 0 0 18px rgba(74, 222, 128, 0.45);
+}
+
+.tdv-btn-sell--active:not(:disabled) {
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.35), 0 0 18px rgba(248, 113, 113, 0.45);
 }
 
 .tdv-controls-bar {
