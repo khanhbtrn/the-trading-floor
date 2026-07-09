@@ -319,6 +319,35 @@
   position: relative;
 }
 
+.tdv-ticket-status {
+  margin: 8px 0 10px;
+  font-size: 9px;
+  line-height: 1.45;
+  padding: 6px 8px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+
+.tdv-ticket-status--locked {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.tdv-ticket-status--ready {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.tdv-btn-buy--active:not(:disabled) {
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.35), 0 0 18px rgba(74, 222, 128, 0.45);
+}
+
+.tdv-btn-sell--active:not(:disabled) {
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.35), 0 0 18px rgba(248, 113, 113, 0.45);
+}
+
 .tdv-size-chips {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

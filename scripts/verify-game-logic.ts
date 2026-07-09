@@ -8,6 +8,12 @@ import {
   instructionFailsRisk,
 } from '../src/lib/sessionRules';
 import { normalizeNpcResponse, salvageNpcResponse, clampPersonaReply } from '../src/lib/npc';
+import {
+  computeSuggestedShares,
+  getOrderTicketStatus,
+  instructionStatePatch,
+  salvageInstructionFromReply,
+} from '../src/lib/orderTicket';
 import { computeRank } from '../src/lib/rank';
 import { MAX_POSITION_PCT_OF_CASH } from '../src/lib/gameReducer';
 
@@ -85,5 +91,64 @@ const longCompliance = 'b'.repeat(400);
 const clampedCompliance = clampPersonaReply('compliance', longCompliance);
 assert.equal(clampedCompliance.length, 320);
 assert.ok(clampedCompliance.endsWith('…'));
+
+// Manager instruction without reason still parses
+const managerNoReason = normalizeNpcResponse({
+  reply: 'size it',
+  instruction: { action: 'buy', sizePctOfCash: 40 },
+  blocked: false,
+  resolvesGlitch: false,
+});
+assert.ok(managerNoReason);
+assert.equal(managerNoReason!.instruction?.action, 'buy');
+assert.equal(managerNoReason!.instruction?.sizePctOfCash, 40);
+
+const salvagedInstruction = salvageInstructionFromReply(
+  'MOVE ON THIS. BUY 45% of cash now.'
+);
+assert.ok(salvagedInstruction);
+assert.equal(salvagedInstruction!.action, 'buy');
+assert.equal(salvagedInstruction!.sizePctOfCash, 45);
+
+const readyTicket = getOrderTicketStatus({
+  instruction: { action: 'buy', sizePctOfCash: 40, reason: 'test' },
+  blocked: false,
+  glitchActive: false,
+  positionQty: 0,
+  cash: 100_000,
+  price: 100,
+  size: 400,
+});
+assert.equal(readyTicket.lockReason, 'ready');
+assert.equal(readyTicket.canBuy, true);
+
+const blockedTicket = getOrderTicketStatus({
+  instruction: { action: 'buy', sizePctOfCash: 60, reason: 'test' },
+  blocked: true,
+  glitchActive: false,
+  positionQty: 0,
+  cash: 100_000,
+  price: 100,
+  size: 100,
+});
+assert.equal(blockedTicket.lockReason, 'compliance-block');
+
+const patch = instructionStatePatch(
+  { action: 'buy', sizePctOfCash: 30, reason: 'ok' },
+  [],
+  100
+);
+assert.equal(patch.patch.blocked, false);
+assert.equal(patch.patch.currentInstruction.sizePctOfCash, 30);
+
+assert.equal(
+  computeSuggestedShares(
+    { action: 'buy', sizePctOfCash: 50, reason: 'ok' },
+    100_000,
+    100,
+    0
+  ),
+  500
+);
 
 console.log('verify-game-logic: all checks passed');

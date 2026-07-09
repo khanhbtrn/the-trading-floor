@@ -24,6 +24,11 @@ export interface TradingDeskViewProps {
   glitchLocked?: boolean;
   buyDisabled?: boolean;
   sellDisabled?: boolean;
+  /** Hint shown on the order ticket when trading is blocked. */
+  ticketMessage?: string;
+  ticketReady?: boolean;
+  activeAction?: 'buy' | 'sell' | null;
+  suggestedSize?: number;
   onBuy?: (size: number) => void;
   onSell?: (size: number) => void;
 }
@@ -68,6 +73,10 @@ export function TradingDeskView({
   glitchLocked = false,
   buyDisabled = false,
   sellDisabled = false,
+  ticketMessage,
+  ticketReady = false,
+  activeAction = null,
+  suggestedSize,
   onBuy,
   onSell,
 }: TradingDeskViewProps) {
@@ -75,6 +84,19 @@ export function TradingDeskView({
   const [priceKey, setPriceKey] = useState(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [lineDrawKey, setLineDrawKey] = useState(0);
+
+  const prevSuggestedSize = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (
+      suggestedSize != null &&
+      suggestedSize > 0 &&
+      suggestedSize !== prevSuggestedSize.current
+    ) {
+      setSize(suggestedSize);
+      prevSuggestedSize.current = suggestedSize;
+    }
+  }, [suggestedSize]);
 
   const lastPrice = priceHistory.length
     ? priceHistory[priceHistory.length - 1].price
@@ -169,6 +191,16 @@ export function TradingDeskView({
 
   const controlsLocked = disabled || glitchLocked;
   const chipVals = [1, 5, 10, 25];
+  const affordable =
+    lastPrice != null && lastPrice > 0 ? Math.floor(cash / lastPrice) : 0;
+  const buyBlocked =
+    controlsLocked ||
+    buyDisabled ||
+    size <= 0 ||
+    (affordable > 0 && size > affordable) ||
+    (lastPrice != null && lastPrice > 0 && size * lastPrice > cash);
+  const sellBlocked =
+    controlsLocked || sellDisabled || size <= 0 || qty <= 0 || size > qty;
 
   return (
     <div className="tdv-root">
@@ -369,6 +401,14 @@ export function TradingDeskView({
               <div className="tdv-corner" style={{ top: -1, right: -1, borderTop: '2px solid', borderRight: '2px solid' }} />
               <div className="tdv-pixel" style={{ fontSize: 10, color: '#67e8f9' }}>ORDER TICKET</div>
 
+              {ticketMessage && (
+                <p
+                  className={`tdv-ticket-status font-mono ${ticketReady ? 'tdv-ticket-status--ready' : 'tdv-ticket-status--locked'}`}
+                >
+                  {ticketMessage}
+                </p>
+              )}
+
               <div>
                 <div className="tdv-pixel tdv-stat-label">SIZE</div>
                 <input
@@ -400,9 +440,9 @@ export function TradingDeskView({
               <div className="tdv-trade-buttons">
                 <motion.button
                   type="button"
-                  className="tdv-btn-buy"
-                  disabled={controlsLocked || buyDisabled || size <= 0}
-                  whileTap={controlsLocked || buyDisabled || size <= 0 ? undefined : { scale: 0.93 }}
+                  className={`tdv-btn-buy ${activeAction === 'buy' && ticketReady ? 'tdv-btn-buy--active' : ''}`}
+                  disabled={buyBlocked}
+                  whileTap={buyBlocked ? undefined : { scale: 0.93 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 28 }}
                   onClick={() => onBuy?.(size)}
                 >
@@ -410,13 +450,9 @@ export function TradingDeskView({
                 </motion.button>
                 <motion.button
                   type="button"
-                  className="tdv-btn-sell"
-                  disabled={controlsLocked || sellDisabled || size <= 0 || qty <= 0}
-                  whileTap={
-                    controlsLocked || sellDisabled || size <= 0 || qty <= 0
-                      ? undefined
-                      : { scale: 0.93 }
-                  }
+                  className={`tdv-btn-sell ${activeAction === 'sell' && ticketReady ? 'tdv-btn-sell--active' : ''}`}
+                  disabled={sellBlocked}
+                  whileTap={sellBlocked ? undefined : { scale: 0.93 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 28 }}
                   onClick={() => onSell?.(size)}
                 >
