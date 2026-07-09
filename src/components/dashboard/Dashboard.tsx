@@ -37,7 +37,6 @@ import { computeRank, RANK_ORDER } from '@/lib/rank';
 import { getScenarioById, scenarios } from '@/lib/scenarios';
 import { endSession, fetchLeaderboard } from '@/lib/sessionApi';
 import type { LeaderboardEntry, Rank } from '@/lib/types';
-import { useSpeechInput } from '@/lib/useSpeechInput';
 
 const TICK_MS_NORMAL = 1000;
 const TICK_MS_SHOCK = 200;
@@ -581,14 +580,6 @@ export function Dashboard() {
     [techMessages, dispatch, state.auditTrail, state.glitchActive, tick, price, rows, state.position.qty, state.cash, state.pnl]
   );
 
-  const { speechSupported, startListening: startManagerMic } = useSpeechInput((t) =>
-    void sendManager(t)
-  );
-  const { startListening: startComplianceMic } = useSpeechInput((t) =>
-    void sendCompliance(t)
-  );
-  const { startListening: startTechMic } = useSpeechInput((t) => void sendTech(t));
-
   const tradeUnlocked =
     !!state.currentInstruction && !state.blocked && !state.glitchActive;
   const managerGreyed =
@@ -917,7 +908,6 @@ export function Dashboard() {
       error: managerError,
       showFreeTextInput: !managerGreyed,
       onSend: (text: string) => void sendManager(text),
-      onMicPress: speechSupported ? startManagerMic : undefined,
       onClearUnread: () => setManagerUnread(0),
       footerExtra: state.currentInstruction ? (
         <>
@@ -945,7 +935,6 @@ export function Dashboard() {
       error: complianceError,
       showFreeTextInput: state.blocked && !overrideGranted,
       onSend: (text: string) => void sendCompliance(text),
-      onMicPress: speechSupported ? startComplianceMic : undefined,
       onClearUnread: () => setComplianceUnread(0),
     },
     {
@@ -958,7 +947,6 @@ export function Dashboard() {
       error: techError,
       showFreeTextInput: state.glitchActive,
       onSend: (text: string) => void sendTech(text),
-      onMicPress: speechSupported ? startTechMic : undefined,
       onClearUnread: () => setTechUnread(0),
     },
   ];
