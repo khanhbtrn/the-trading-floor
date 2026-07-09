@@ -6,10 +6,16 @@ interface PlayerLoginProps {
   onSubmit: (name: string) => Promise<void>;
   loading?: boolean;
   error?: string | null;
+  initialName?: string;
 }
 
-export function PlayerLogin({ onSubmit, loading = false, error }: PlayerLoginProps) {
-  const [name, setName] = useState('');
+export function PlayerLogin({
+  onSubmit,
+  loading = false,
+  error,
+  initialName = '',
+}: PlayerLoginProps) {
+  const [name, setName] = useState(initialName);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-6">
@@ -35,13 +41,17 @@ export function PlayerLogin({ onSubmit, loading = false, error }: PlayerLoginPro
             disabled={loading}
             autoFocus
           />
-          {error && <p className="font-mono text-xs text-red-400">{error}</p>}
+          {error && (
+            <p className="rounded border border-red-900/50 bg-red-950/30 px-3 py-2 font-mono text-xs text-red-400">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={loading || !name.trim()}
             className="w-full rounded border border-cyan-700 py-2 font-mono text-sm text-cyan-300 disabled:opacity-40"
           >
-            {loading ? 'Creating profile…' : 'Enter the Floor'}
+            {loading ? 'Connecting…' : 'Enter the Floor'}
           </button>
         </form>
       </div>

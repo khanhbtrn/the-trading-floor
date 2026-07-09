@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard-shell';
-import { PlayerLogin } from '@/components/player-login';
+import { PlayerLogin, PlayerBootScreen } from '@/components/player-login';
 import { ScorecardModal } from '@/components/scorecard-modal';
 import { SidebarNpcPanel } from '@/components/sidebar-npc-panel';
 import type { ChatMessage } from '@/components/npc-chat';
@@ -16,13 +16,7 @@ import {
   MAX_POSITION_PCT_OF_CASH,
 } from '@/lib/gameReducer';
 import { requestNpc } from '@/lib/npcClient';
-import {
-  createPlayer,
-  fetchPlayer,
-  getStoredPlayerId,
-  playerRowToRank,
-  storePlayerId,
-} from '@/lib/playerService';
+import { usePlayerInit } from '@/hooks/usePlayerInit';
 import { computeRank } from '@/lib/rank';
 import { getScenarioById, scenarios } from '@/lib/scenarios';
 import { endSession, fetchLeaderboard } from '@/lib/sessionApi';
@@ -40,9 +34,8 @@ const TECH_GREETING =
 export function Dashboard() {
   const { state, dispatch } = useGame();
 
-  const [playerReady, setPlayerReady] = useState(false);
-  const [playerLoading, setPlayerLoading] = useState(true);
-  const [playerError, setPlayerError] = useState<string | null>(null);
+  const { playerReady, playerLoading, playerError, handleCreatePlayer, needsLogin, isBooting } =
+    usePlayerInit();
 
   const [selectedScenarioId, setSelectedScenarioId] = useState('2008');
   const [tick, setTick] = useState(0);
@@ -95,38 +88,11 @@ export function Dashboard() {
     setLeaderboardLoading(false);
   }, []);
 
-  const hydratePlayer = useCallback(async () => {
-    setPlayerLoading(true);
-    setPlayerError(null);
-
-    const storedId = getStoredPlayerId();
-    if (!storedId) {
-      setPlayerLoading(false);
-      return;
-    }
-
-    const row = await fetchPlayer(storedId);
-    if (!row) {
-      setPlayerLoading(false);
-      return;
-    }
-
-    dispatch({
-      type: 'LOAD_PLAYER',
-      playerId: row.id,
-      playerName: row.player_name,
-      rank: playerRowToRank(row.rank),
-      careerPnL: Number(row.career_pnl),
-      sessionsPlayed: row.sessions_played ?? 0,
-    });
-    setPlayerReady(true);
-    setPlayerLoading(false);
-  }, [dispatch]);
-
   useEffect(() => {
-    void hydratePlayer();
-    void loadLeaderboard();
-  }, [hydratePlayer, loadLeaderboard]);
+    if (playerReady) {
+      void loadLeaderboard();
+    }
+  }, [playerReady, loadLeaderboard]);
 
   useEffect(() => {
     if (playerReady && !state.currentScenarioId) {
@@ -137,43 +103,6 @@ export function Dashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerReady]);
-
-  const handleCreatePlayer = async (name: string) => {
-    setPlayerLoading(true);
-    setPlayerError(null);
-
-    const row = await createPlayer(name);
-    if (!row) {
-      const offlineId =
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `local-${Date.now()}`;
-      storePlayerId(offlineId);
-      dispatch({
-        type: 'LOAD_PLAYER',
-        playerId: offlineId,
-        playerName: name,
-        rank: 'Junior Trader',
-        careerPnL: 0,
-        sessionsPlayed: 0,
-      });
-      setPlayerReady(true);
-      setPlayerLoading(false);
-      setPlayerError(null);
-      return;
-    }
-
-    dispatch({
-      type: 'LOAD_PLAYER',
-      playerId: row.id,
-      playerName: row.player_name,
-      rank: playerRowToRank(row.rank),
-      careerPnL: Number(row.career_pnl),
-      sessionsPlayed: row.sessions_played ?? 0,
-    });
-    setPlayerReady(true);
-    setPlayerLoading(false);
-  };
 
   const resetNpcChats = () => {
     setManagerMessages([{ role: 'npc', text: MANAGER_GREETING }]);
@@ -556,7 +485,11 @@ export function Dashboard() {
     [rows, tick]
   );
 
-  if (!playerReady) {
+  if (isBooting) {
+    return <PlayerBootScreen />;
+  }
+
+  if (needsLogin) {
     return (
       <PlayerLogin
         onSubmit={handleCreatePlayer}
