@@ -24,12 +24,15 @@ const PERSONA_MAX_TOKENS: Record<NpcPersona, number> = {
 interface NpcRequestBody {
   persona: NpcPersona;
   messages: NpcMessage[];
+  /** Optional live desk snapshot for Tech — appended to system prompt, not shown in chat. */
+  deskContext?: string;
 }
 
 async function callAnthropic(
   apiKey: string,
   persona: NpcPersona,
-  messages: NpcMessage[]
+  messages: NpcMessage[],
+  extraSystemContext = ''
 ): Promise<string> {
   const res = await fetch(ANTHROPIC_API_URL, {
     method: 'POST',
@@ -42,7 +45,7 @@ async function callAnthropic(
       model: MODEL,
       max_tokens: PERSONA_MAX_TOKENS[persona],
       system:
-        `${personaSystemPrompts[persona]}\n` +
+        `${personaSystemPrompts[persona]}${extraSystemContext}\n` +
         'Return ONLY JSON with shape: ' +
         '{"reply": string, "instruction": {"action":"buy"|"sell","sizePctOfCash": number,"reason": string} | null, "blocked": boolean, "resolvesGlitch": boolean}',
       messages: messages.map((m) => ({
@@ -139,13 +142,20 @@ export async function POST(req: Request) {
     : [];
 
   try {
-    const firstRaw = await callAnthropic(apiKey, body.persona, safeMessages);
+    const deskContext =
+      typeof body.deskContext === 'string' ? body.deskContext.trim() : '';
+    const contextBlock =
+      body.persona === 'tech' && deskContext
+        ? `\n\nCurrent desk state (player can see this on screen):\n${deskContext}`
+        : '';
+
+    const firstRaw = await callAnthropic(apiKey, body.persona, safeMessages, contextBlock);
     const firstParsed = parseNpcResponse(firstRaw);
     if (firstParsed) {
       return NextResponse.json(finalizeResponse(body.persona, firstParsed));
     }
 
-    const secondRaw = await callAnthropic(apiKey, body.persona, safeMessages);
+    const secondRaw = await callAnthropic(apiKey, body.persona, safeMessages, contextBlock);
     const secondParsed = parseNpcResponse(secondRaw);
     if (secondParsed) {
       return NextResponse.json(finalizeResponse(body.persona, secondParsed));
