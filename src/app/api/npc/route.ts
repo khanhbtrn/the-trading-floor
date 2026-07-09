@@ -8,6 +8,8 @@ import {
   type NpcResponse,
 } from '@/lib/npc';
 
+export const dynamic = 'force-dynamic';
+
 const MODEL = 'claude-sonnet-4-6';
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 
