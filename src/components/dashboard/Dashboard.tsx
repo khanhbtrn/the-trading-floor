@@ -155,8 +155,8 @@ export function Dashboard() {
     setManagerLoading(false);
     setComplianceLoading(false);
     setTechLoading(false);
-    setManagerUnread(0);
-    setComplianceUnread(0);
+    setManagerUnread(1);
+    setComplianceUnread(1);
     setTechUnread(0);
     setManagerUrgent(false);
     setOverrideGranted(false);
@@ -179,8 +179,8 @@ export function Dashboard() {
     setManagerMessages([{ role: 'npc', text: MANAGER_GREETING }]);
     setComplianceMessages([{ role: 'npc', text: COMPLIANCE_GREETING }]);
     setTechMessages([{ role: 'npc', text: TECH_GREETING }]);
-    setManagerUnread(0);
-    setComplianceUnread(0);
+    setManagerUnread(1);
+    setComplianceUnread(1);
     setTechUnread(0);
     setManagerUrgent(false);
     setOverrideGranted(false);

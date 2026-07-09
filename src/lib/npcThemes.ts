@@ -19,7 +19,7 @@ export const NPC_THEMES: Record<NpcPersonaId, NpcPersonaTheme> = {
   manager: {
     id: 'manager',
     displayName: 'Big Buck Bro',
-    initial: 'B',
+    initial: 'M',
     accent: '#f97316',
     accentSoft: 'rgba(249, 115, 22, 0.14)',
     accentRgb: '249, 115, 22',

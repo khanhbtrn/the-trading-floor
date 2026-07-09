@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { NpcChatView } from '@/components/npc-chat';
 import type { SidebarNpcPanelProps } from '@/components/sidebar-npc-panel';
 import { getNpcTheme, type NpcPersonaId } from '@/lib/npcThemes';
+import { playNpcMessageSound } from '@/lib/playNpcMessageSound';
 import './FloatingNpcComms.css';
 
 /** Bottom = Manager (thumb reach), then Compliance, Tech on top. */
@@ -100,6 +101,12 @@ export function FloatingNpcComms({ npcs, onChatInputActiveChange }: FloatingNpcC
           ...keys,
           [npc.persona]: keys[npc.persona] + 1,
         }));
+        if (
+          (npc.persona === 'manager' || npc.persona === 'compliance') &&
+          count > 0
+        ) {
+          playNpcMessageSound(npc.persona);
+        }
       }
       prevUnread.current[npc.persona] = count;
     }
