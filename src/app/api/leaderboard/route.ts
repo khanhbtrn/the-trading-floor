@@ -22,7 +22,10 @@ export async function GET() {
 
   if (error || !data) {
     console.error('leaderboard fetch failed:', error?.message);
-    return NextResponse.json({ entries: [] });
+    return NextResponse.json(
+      { entries: [], error: error?.message ?? 'Leaderboard fetch failed' },
+      { status: 500 }
+    );
   }
 
   const sorted = [...data].sort((a, b) => {

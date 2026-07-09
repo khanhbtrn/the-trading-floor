@@ -62,9 +62,13 @@ export function Dashboard() {
   const [techBadge, setTechBadge] = useState(false);
   const [overrideGranted, setOverrideGranted] = useState(false);
   const [riskStatus, setRiskStatus] = useState<string | null>(null);
+  const [managerError, setManagerError] = useState<string | null>(null);
+  const [complianceError, setComplianceError] = useState<string | null>(null);
+  const [techError, setTechError] = useState<string | null>(null);
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [scorecardData, setScorecardData] = useState<{
@@ -83,8 +87,14 @@ export function Dashboard() {
 
   const loadLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
-    const entries = await fetchLeaderboard();
-    setLeaderboard(entries);
+    setLeaderboardError(null);
+    const result = await fetchLeaderboard();
+    if (result.ok) {
+      setLeaderboard(result.entries);
+    } else {
+      setLeaderboard([]);
+      setLeaderboardError(result.error);
+    }
     setLeaderboardLoading(false);
   }, []);
 
@@ -113,6 +123,9 @@ export function Dashboard() {
     setTechBadge(false);
     setOverrideGranted(false);
     setRiskStatus(null);
+    setManagerError(null);
+    setComplianceError(null);
+    setTechError(null);
     glitchTriggered.current = false;
   };
 
@@ -202,6 +215,13 @@ export function Dashboard() {
       glitchTriggered.current = true;
       dispatch({ type: 'PATCH', patch: { glitchActive: true } });
       setTechBadge(true);
+      setTechMessages((prev) => [
+        ...prev,
+        {
+          role: 'npc',
+          text: 'SYSTEM GLITCH — price feed frozen at tick 20. Run diagnostics.',
+        },
+      ]);
     }
   }, [tick, state.currentScenarioId, rows.length, dispatch]);
 
@@ -226,9 +246,15 @@ export function Dashboard() {
       const nextMessages = [...managerMessages, userMessage];
       setManagerMessages(nextMessages);
       setManagerLoading(true);
+      setManagerError(null);
 
       try {
-        const npc = await requestNpc('manager', nextMessages);
+        const result = await requestNpc('manager', nextMessages);
+        if (!result.ok) {
+          setManagerError(result.error);
+          return;
+        }
+        const npc = result.data;
         setManagerMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
         setManagerBadge(true);
 
@@ -252,9 +278,15 @@ export function Dashboard() {
       const nextMessages = [...complianceMessages, userMessage];
       setComplianceMessages(nextMessages);
       setComplianceLoading(true);
+      setComplianceError(null);
 
       try {
-        const npc = await requestNpc('compliance', nextMessages);
+        const result = await requestNpc('compliance', nextMessages);
+        if (!result.ok) {
+          setComplianceError(result.error);
+          return;
+        }
+        const npc = result.data;
         setComplianceMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
         setComplianceBadge(true);
 
@@ -300,9 +332,15 @@ export function Dashboard() {
       const nextMessages = [...techMessages, userMessage];
       setTechMessages(nextMessages);
       setTechLoading(true);
+      setTechError(null);
 
       try {
-        const npc = await requestNpc('tech', nextMessages);
+        const result = await requestNpc('tech', nextMessages);
+        if (!result.ok) {
+          setTechError(result.error);
+          return;
+        }
+        const npc = result.data;
         setTechMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
         setTechBadge(true);
 
@@ -336,6 +374,9 @@ export function Dashboard() {
   const tradeUnlocked =
     !!state.currentInstruction && !state.blocked && !state.glitchActive;
   const managerGreyed = state.blocked && !overrideGranted;
+  const instructionAction = state.currentInstruction?.action;
+  const buyAllowed = tradeUnlocked && instructionAction === 'buy';
+  const sellAllowed = tradeUnlocked && instructionAction === 'sell';
 
   const executeBuy = (size: number) => {
     if (!tradeUnlocked || state.currentInstruction?.action !== 'buy' || size <= 0) {
@@ -465,7 +506,7 @@ export function Dashboard() {
       ...snapshot,
       persistMessage: result.ok
         ? 'Career progress saved to Supabase.'
-        : `Session ended (save skipped: ${result.reason ?? 'unknown'})`,
+        : `Session ended (save failed: ${result.reason})`,
     });
     setScorecardOpen(true);
     setEndingSession(false);
@@ -527,8 +568,7 @@ export function Dashboard() {
   const leftSidebar = (
     <div className="space-y-4 font-mono text-[11px]">
       <div>
-        <p className="font-pixel text-[8px] text-zinc-500">CAREER</p>
-        <p className="mt-2 text-zinc-300">{state.rank}</p>
+        <p className="text-zinc-300">{state.rank}</p>
         <p className="text-zinc-500">
           Career P&amp;L: ${state.careerPnL.toFixed(2)}
         </p>
@@ -540,7 +580,10 @@ export function Dashboard() {
         {leaderboardLoading && (
           <p className="mt-2 text-zinc-600">Loading…</p>
         )}
-        {!leaderboardLoading && leaderboard.length === 0 && (
+        {leaderboardError && !leaderboardLoading && (
+          <p className="mt-2 text-red-400">{leaderboardError}</p>
+        )}
+        {!leaderboardLoading && !leaderboardError && leaderboard.length === 0 && (
           <p className="mt-2 text-zinc-600">No players yet</p>
         )}
         <ul className="mt-2 space-y-1">
@@ -577,7 +620,9 @@ export function Dashboard() {
           position={state.position}
           cash={state.cash}
           pnl={state.pnl}
-          disabled={!tradeUnlocked}
+          disabled={state.glitchActive || !state.currentInstruction}
+          buyDisabled={!buyAllowed}
+          sellDisabled={!sellAllowed}
           onBuy={executeBuy}
           onSell={executeSell}
         />
@@ -601,6 +646,7 @@ export function Dashboard() {
         disabled={managerGreyed}
         badge={managerBadge}
         statusLine={riskStatus ?? undefined}
+        error={managerError}
         showFreeTextInput={!managerGreyed}
         onSend={(text) => void sendManager(text)}
         onMicPress={speechSupported ? startManagerMic : undefined}
@@ -621,6 +667,7 @@ export function Dashboard() {
         disabled={!state.blocked}
         highlighted={state.blocked && !overrideGranted}
         badge={complianceBadge}
+        error={complianceError}
         showFreeTextInput={state.blocked && !overrideGranted}
         onSend={(text) => void sendCompliance(text)}
         onMicPress={speechSupported ? startComplianceMic : undefined}
@@ -631,6 +678,7 @@ export function Dashboard() {
         isLoading={techLoading}
         highlighted={state.glitchActive}
         badge={techBadge}
+        error={techError}
         showFreeTextInput={state.glitchActive}
         onSend={(text) => void sendTech(text)}
         onMicPress={speechSupported ? startTechMic : undefined}
@@ -668,8 +716,11 @@ export function Dashboard() {
         disabled={!state.currentScenarioId || endingSession}
         onClick={() => void handleEndSession()}
       >
-        {endingSession ? 'Saving…' : 'End Session'}
+        {endingSession ? 'Saving session…' : 'End Session'}
       </button>
+      {endingSession && (
+        <span className="font-mono text-[10px] text-zinc-500">Writing to Supabase…</span>
+      )}
     </>
   );
 
