@@ -22,7 +22,7 @@ Equity trading floor simulation with persistent career progression. Single dashb
 
 ## Game flow
 
-1. **Login** — create player, store `playerId` in `localStorage`
+1. **Login** — create or resume player; `playerId` stored in `localStorage` for auto-restore
 2. **Intro** — first-session onboarding (skippable)
 3. **Session** — Manager instruction → risk check → trade desk; Compliance on block; Tech at tick 20 glitch
 4. **End session** — scorecard, rank update, Supabase persistence

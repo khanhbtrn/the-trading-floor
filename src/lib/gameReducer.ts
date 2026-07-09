@@ -7,7 +7,7 @@ export const GLITCH_TICK = 20;
 export const SHOCK_TICK = 12;
 /** Biggest single-tick down-move ratio from the 2008 scenario CSV (tick 31). */
 export const SHOCK_DROP_RATIO = 90.0199966430664 / 99.8499984741211;
-export const ORDER_COUNTDOWN_SEC = 15;
+export const ORDER_COUNTDOWN_SEC = 30;
 
 export const initialGameState: GameState = {
   playerId: '',

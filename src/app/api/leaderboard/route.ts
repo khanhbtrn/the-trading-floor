@@ -37,11 +37,35 @@ export async function GET() {
     return Number(b.career_pnl) - Number(a.career_pnl);
   });
 
-  const entries = sorted.slice(0, 5).map((row) => ({
-    player_name: row.player_name,
-    rank: toRank(row.rank),
-    career_pnl: Number(row.career_pnl),
-  }));
+  const bestByName = new Map<
+    string,
+    { player_name: string; rank: Rank; career_pnl: number }
+  >();
+  for (const row of sorted) {
+    const key = row.player_name.trim().toLowerCase();
+    const existing = bestByName.get(key);
+    const pnl = Number(row.career_pnl);
+    if (
+      !existing ||
+      pnl > existing.career_pnl ||
+      (pnl === existing.career_pnl &&
+        RANK_ORDER[toRank(row.rank)] > RANK_ORDER[existing.rank])
+    ) {
+      bestByName.set(key, {
+        player_name: row.player_name,
+        rank: toRank(row.rank),
+        career_pnl: pnl,
+      });
+    }
+  }
+
+  const entries = Array.from(bestByName.values())
+    .sort((a, b) => {
+      const rankDiff = RANK_ORDER[b.rank] - RANK_ORDER[a.rank];
+      if (rankDiff !== 0) return rankDiff;
+      return b.career_pnl - a.career_pnl;
+    })
+    .slice(0, 5);
 
   return NextResponse.json({ entries });
 }

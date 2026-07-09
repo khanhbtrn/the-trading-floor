@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard-shell';
 import { GameIntroSequence } from '@/components/game-intro';
 import { PlayerLogin } from '@/components/player-login';
+import { PlayerBootScreen } from '@/components/player-login/PlayerBootScreen';
 import { ScorecardModal } from '@/components/scorecard-modal';
 import { AnimatedPnL } from '@/components/animated-pnl';
 import { ManagerOrderCountdown } from '@/components/manager-order-countdown';
@@ -31,6 +32,9 @@ import {
 } from '@/lib/sessionRules';
 import { requestNpc } from '@/lib/npcClient';
 import { buildTechDeskContext } from '@/lib/techDeskContext';
+import { playerAnswerResolvesGlitch } from '@/lib/glitchResolution';
+import { describeTradeLockReason } from '@/lib/tradeLockReason';
+import { instructionToShareSize } from '@/lib/tradeSizing';
 import { usePlayerInit } from '@/hooks/usePlayerInit';
 import { useManagerOrderCountdown } from '@/hooks/useManagerOrderCountdown';
 import { computeRank, RANK_ORDER } from '@/lib/rank';
@@ -44,8 +48,10 @@ const SHOCK_DURATION_MS = 5000;
 const ORDER_EXPIRED_LINE = 'too slow. gone. wake up.';
 const MANAGER_GREETING =
   'Morning. The tape is unstable. Give me your read before we size this ticket.';
-const COMPLIANCE_GREETING =
-  'Compliance here. Your instruction breached the desk position limit. Justify this trade.';
+const COMPLIANCE_IDLE_GREETING =
+  'Compliance on the line. I monitor the 50% position limit — ping me if risk blocks your ticket.';
+const COMPLIANCE_BREACH_GREETING =
+  'Your instruction breached the desk position limit. Justify this trade or resize with your Manager.';
 const TECH_GREETING =
   'Desk support. Feed looks stuck — tell me the LAST price and whether the chart is still moving.';
 
@@ -78,12 +84,16 @@ export function Dashboard() {
   const [tickIntervalMs, setTickIntervalMs] = useState(TICK_MS_NORMAL);
   const [chatInputActive, setChatInputActive] = useState(false);
   const [orderCountdownActive, setOrderCountdownActive] = useState(false);
+  const [marketClockPaused, setMarketClockPaused] = useState(true);
+  const [showManagerHint, setShowManagerHint] = useState(true);
+  const [conductFlash, setConductFlash] = useState<string | null>(null);
+  const sessionEndTriggered = useRef(false);
 
   const [managerMessages, setManagerMessages] = useState<ChatMessage[]>([
     { role: 'npc', text: MANAGER_GREETING },
   ]);
   const [complianceMessages, setComplianceMessages] = useState<ChatMessage[]>([
-    { role: 'npc', text: COMPLIANCE_GREETING },
+    { role: 'npc', text: COMPLIANCE_IDLE_GREETING },
   ]);
   const [techMessages, setTechMessages] = useState<ChatMessage[]>([
     { role: 'npc', text: TECH_GREETING },
@@ -120,6 +130,33 @@ export function Dashboard() {
   const [endingSession, setEndingSession] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const prevRankRef = useRef(state.rank);
+  const prevConductRef = useRef(state.conductScore);
+
+  const flashConductDelta = useCallback((nextScore: number) => {
+    const delta = nextScore - prevConductRef.current;
+    prevConductRef.current = nextScore;
+    if (delta === 0) return;
+    const sign = delta > 0 ? '+' : '';
+    setConductFlash(`Conduct ${sign}${delta} → ${nextScore}`);
+    window.setTimeout(() => setConductFlash(null), 3500);
+  }, []);
+
+  useEffect(() => {
+    if (state.currentScenarioId) {
+      prevConductRef.current = state.conductScore;
+    }
+  }, [state.currentScenarioId, state.conductScore]);
+
+  const applyConductPatch = useCallback(
+    (nextScore: number, patch: Record<string, unknown>) => {
+      flashConductDelta(nextScore);
+      dispatch({
+        type: 'PATCH',
+        patch: { ...patch, conductScore: clampConduct(nextScore) },
+      });
+    },
+    [dispatch, flashConductDelta]
+  );
 
   const scenario = state.currentScenarioId
     ? getScenarioById(state.currentScenarioId)
@@ -149,8 +186,12 @@ export function Dashboard() {
     setTickIntervalMs(TICK_MS_NORMAL);
     setChatInputActive(false);
     setOrderCountdownActive(false);
+    setMarketClockPaused(true);
+    setShowManagerHint(true);
+    setConductFlash(null);
+    sessionEndTriggered.current = false;
     setManagerMessages([{ role: 'npc', text: MANAGER_GREETING }]);
-    setComplianceMessages([{ role: 'npc', text: COMPLIANCE_GREETING }]);
+    setComplianceMessages([{ role: 'npc', text: COMPLIANCE_IDLE_GREETING }]);
     setTechMessages([{ role: 'npc', text: TECH_GREETING }]);
     setManagerLoading(false);
     setComplianceLoading(false);
@@ -177,7 +218,7 @@ export function Dashboard() {
 
   const resetNpcChats = () => {
     setManagerMessages([{ role: 'npc', text: MANAGER_GREETING }]);
-    setComplianceMessages([{ role: 'npc', text: COMPLIANCE_GREETING }]);
+    setComplianceMessages([{ role: 'npc', text: COMPLIANCE_IDLE_GREETING }]);
     setTechMessages([{ role: 'npc', text: TECH_GREETING }]);
     setManagerUnread(0);
     setComplianceUnread(0);
@@ -210,6 +251,9 @@ export function Dashboard() {
     resetNpcChats();
     setMarketShockActive(false);
     setTickIntervalMs(TICK_MS_NORMAL);
+    setMarketClockPaused(true);
+    setShowManagerHint(true);
+    sessionEndTriggered.current = false;
     shockTriggered.current = false;
   };
 
@@ -280,6 +324,7 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!rows.length || state.glitchActive || !state.currentScenarioId) return;
+    if (marketClockPaused) return;
     if (tick >= rows.length - 1) return;
 
     const timer = setTimeout(() => {
@@ -332,6 +377,7 @@ export function Dashboard() {
     state.currentScenarioId,
     dispatch,
     tickIntervalMs,
+    marketClockPaused,
   ]);
 
   useEffect(() => {
@@ -361,17 +407,14 @@ export function Dashboard() {
   const handleOrderExpire = useCallback(() => {
     if (!state.currentInstruction) return;
 
-    dispatch({
-      type: 'PATCH',
-      patch: {
-        currentInstruction: null,
-        blocked: false,
-        conductScore: clampConduct(state.conductScore + CONDUCT_ORDER_EXPIRED),
-        auditTrail: [
-          ...state.auditTrail,
-          { source: 'order-expired', tick, note: 'Manager order timer expired' },
-        ],
-      },
+    const nextConduct = state.conductScore + CONDUCT_ORDER_EXPIRED;
+    applyConductPatch(nextConduct, {
+      currentInstruction: null,
+      blocked: false,
+      auditTrail: [
+        ...state.auditTrail,
+        { source: 'order-expired', tick, note: 'Manager order timer expired' },
+      ],
     });
     setManagerUrgent(false);
     setOverrideGranted(false);
@@ -386,8 +429,8 @@ export function Dashboard() {
     state.currentInstruction,
     state.conductScore,
     state.auditTrail,
-    dispatch,
     tick,
+    applyConductPatch,
   ]);
 
   const handleManagerNudge = useCallback((index: number) => {
@@ -411,21 +454,26 @@ export function Dashboard() {
         dispatch({ type: 'PATCH', patch: { blocked: true } });
         setRiskStatus('BLOCKED — see Compliance');
         setComplianceUnread((c) => c + 1);
+        setComplianceMessages((prev) => {
+          const hasBreach = prev.some((m) =>
+            m.text.includes('breached the desk position limit')
+          );
+          if (hasBreach) return prev;
+          return [...prev, { role: 'npc', text: COMPLIANCE_BREACH_GREETING }];
+        });
       } else {
         const bonus = compliantResizeBonus(state.auditTrail, instruction);
-        dispatch({
-          type: 'PATCH',
-          patch: {
-            blocked: false,
-            conductScore: clampConduct(state.conductScore + bonus),
-          },
-        });
+        if (bonus > 0) {
+          applyConductPatch(state.conductScore + bonus, { blocked: false });
+        } else {
+          dispatch({ type: 'PATCH', patch: { blocked: false } });
+        }
         setRiskStatus(
           bonus > 0 ? 'PASS — compliant resize (+10 conduct)' : 'PASS — execute on desk'
         );
       }
     },
-    [dispatch, state.auditTrail, state.conductScore]
+    [dispatch, state.auditTrail, state.conductScore, applyConductPatch]
   );
 
   const sendManager = useCallback(
@@ -450,6 +498,8 @@ export function Dashboard() {
 
         if (npc.instruction) {
           setOverrideGranted(false);
+          setMarketClockPaused(false);
+          setShowManagerHint(false);
           dispatch({
             type: 'PATCH',
             patch: { currentInstruction: npc.instruction },
@@ -491,22 +541,16 @@ export function Dashboard() {
 
         if (!npc.blocked) {
           setOverrideGranted(true);
-          dispatch({
-            type: 'PATCH',
-            patch: {
-              blocked: false,
-              conductScore: clampConduct(
-                state.conductScore - CONDUCT_OVERRIDE_PENALTY
-              ),
-              auditTrail: [
-                ...state.auditTrail,
-                {
-                  source: 'player-override',
-                  tick,
-                  note: 'Compliance override granted',
-                },
-              ],
-            },
+          applyConductPatch(state.conductScore - CONDUCT_OVERRIDE_PENALTY, {
+            blocked: false,
+            auditTrail: [
+              ...state.auditTrail,
+              {
+                source: 'player-override',
+                tick,
+                note: 'Compliance override granted',
+              },
+            ],
           });
           setRiskStatus('Override approved — execute on desk');
         } else {
@@ -528,7 +572,7 @@ export function Dashboard() {
         setComplianceLoading(false);
       }
     },
-    [complianceMessages, dispatch, state.auditTrail, state.conductScore, state.blocked, tick, orderCountdown]
+    [complianceMessages, dispatch, state.auditTrail, state.conductScore, state.blocked, tick, orderCountdown, applyConductPatch]
   );
 
   const sendTech = useCallback(
@@ -562,7 +606,12 @@ export function Dashboard() {
         setTechMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
         setTechUnread((c) => c + 1);
 
-        if (npc.resolvesGlitch) {
+        const glitchCleared =
+          npc.resolvesGlitch ||
+          (state.glitchActive &&
+            playerAnswerResolvesGlitch(text, deskContext));
+
+        if (glitchCleared) {
           dispatch({
             type: 'PATCH',
             patch: {
@@ -589,20 +638,32 @@ export function Dashboard() {
   const buyAllowed = tradeUnlocked && instructionAction === 'buy';
   const sellAllowed = tradeUnlocked && instructionAction === 'sell';
 
+  const suggestedShareSize = useMemo(() => {
+    if (!state.currentInstruction || price <= 0) return undefined;
+    return instructionToShareSize(state.currentInstruction, state.cash, price);
+  }, [state.currentInstruction, state.cash, price]);
+
+  const instructionLabel = state.currentInstruction
+    ? `${state.currentInstruction.action.toUpperCase()} ${state.currentInstruction.sizePctOfCash}%` +
+      (suggestedShareSize ? ` ≈ ${suggestedShareSize} sh` : '')
+    : null;
+
+  const tradeLockReason = describeTradeLockReason({
+    hasInstruction: !!state.currentInstruction,
+    blocked: state.blocked,
+    glitchActive: state.glitchActive,
+    instruction: state.currentInstruction,
+    tradeUnlocked,
+  });
+
   const executeBuy = (size: number) => {
     if (!tradeUnlocked || state.currentInstruction?.action !== 'buy' || size <= 0) {
       if (state.glitchActive && size > 0) {
-        dispatch({
-          type: 'PATCH',
-          patch: {
-            conductScore: clampConduct(
-              state.conductScore - CONDUCT_GLITCH_PANIC_PENALTY
-            ),
-            auditTrail: [
-              ...state.auditTrail,
-              { source: 'glitch-panic', tick, action: 'buy', size },
-            ],
-          },
+        applyConductPatch(state.conductScore - CONDUCT_GLITCH_PANIC_PENALTY, {
+          auditTrail: [
+            ...state.auditTrail,
+            { source: 'glitch-panic', tick, action: 'buy', size },
+          ],
         });
       }
       return;
@@ -644,34 +705,40 @@ export function Dashboard() {
   const executeSell = (size: number) => {
     if (!tradeUnlocked || state.currentInstruction?.action !== 'sell' || size <= 0) {
       if (state.glitchActive && size > 0) {
-        dispatch({
-          type: 'PATCH',
-          patch: {
-            conductScore: clampConduct(
-              state.conductScore - CONDUCT_GLITCH_PANIC_PENALTY
-            ),
-            auditTrail: [
-              ...state.auditTrail,
-              { source: 'glitch-panic', tick, action: 'sell', size },
-            ],
-          },
+        applyConductPatch(state.conductScore - CONDUCT_GLITCH_PANIC_PENALTY, {
+          auditTrail: [
+            ...state.auditTrail,
+            { source: 'glitch-panic', tick, action: 'sell', size },
+          ],
         });
       }
       return;
     }
-    if (size > state.position.qty) return;
 
-    const newQty = state.position.qty - size;
+    const oldQty = state.position.qty;
+    const oldAvg = state.position.avgPrice;
+    const newQty = oldQty - size;
     const newCash = state.cash + size * price;
+
+    let newAvg = oldAvg;
+    if (newQty === 0) {
+      newAvg = 0;
+    } else if (newQty > 0) {
+      newAvg = oldAvg;
+    } else if (oldQty >= 0) {
+      newAvg = price;
+    } else {
+      const prevShort = Math.abs(oldQty);
+      const newShort = Math.abs(newQty);
+      newAvg = (prevShort * oldAvg + size * price) / newShort;
+    }
+
     const newPnl = newCash + newQty * price - DEFAULT_STARTING_CASH;
 
     dispatch({
       type: 'PATCH',
       patch: {
-        position: {
-          qty: newQty,
-          avgPrice: newQty === 0 ? 0 : state.position.avgPrice,
-        },
+        position: { qty: newQty, avgPrice: newAvg },
         cash: newCash,
         pnl: newPnl,
         sessionPnL: newPnl,
@@ -703,7 +770,12 @@ export function Dashboard() {
   const persistSessionToSupabase = useCallback(async () => {
     const previousRank = prevRankRef.current;
     const newCareerPnL = state.careerPnL + state.pnl;
-    const newRank = computeRank(newCareerPnL, state.conductScore);
+    const newSessionsPlayed = state.sessionsPlayed + 1;
+    const newRank = computeRank(
+      newCareerPnL,
+      state.conductScore,
+      newSessionsPlayed
+    );
     const rankIncreased = RANK_ORDER[newRank] > RANK_ORDER[previousRank];
     const snapshot = {
       sessionPnL: state.pnl,
@@ -721,8 +793,6 @@ export function Dashboard() {
     if (!state.currentScenarioId || !state.playerId) {
       return { ok: false as const, reason: 'No active session', snapshot };
     }
-
-    const newSessionsPlayed = state.sessionsPlayed + 1;
 
     const result = await endSession({
       playerId: state.playerId,
@@ -766,7 +836,7 @@ export function Dashboard() {
     void loadLeaderboard();
   }, [loadLeaderboard]);
 
-  const handleEndSession = async () => {
+  const handleEndSession = useCallback(async () => {
     if (!state.currentScenarioId || endingSession) return;
     setEndingSession(true);
     setSaveError(null);
@@ -785,7 +855,23 @@ export function Dashboard() {
     if (outcome.ok) {
       finalizeSessionUi();
     }
-  };
+  }, [state.currentScenarioId, endingSession, persistSessionToSupabase, finalizeSessionUi]);
+
+  useEffect(() => {
+    if (!rows.length || !state.currentScenarioId || endingSession) return;
+    if (marketClockPaused) return;
+    if (tick < rows.length - 1) return;
+    if (sessionEndTriggered.current) return;
+    sessionEndTriggered.current = true;
+    void handleEndSession();
+  }, [
+    tick,
+    rows.length,
+    state.currentScenarioId,
+    endingSession,
+    marketClockPaused,
+    handleEndSession,
+  ]);
 
   const handleLogout = async () => {
     if (endingSession) return;
@@ -815,6 +901,10 @@ export function Dashboard() {
       })),
     [rows, tick]
   );
+
+  if (!playerReady && playerLoading) {
+    return <PlayerBootScreen message="Restoring your career…" />;
+  }
 
   if (needsLogin) {
     return (
@@ -887,6 +977,9 @@ export function Dashboard() {
         </p>
         <p className="text-zinc-500">Sessions: {state.sessionsPlayed}</p>
         <p className="text-zinc-500">Conduct: {state.conductScore}</p>
+        {conductFlash && (
+          <p className="text-cyan-400">{conductFlash}</p>
+        )}
       </div>
       <div>
         <p className="font-pixel text-[8px] text-zinc-500">LEADERBOARD</p>
@@ -929,6 +1022,25 @@ export function Dashboard() {
       )}
       {state.currentScenarioId && !csvLoading && !csvError && rows.length > 0 && (
         <>
+          {showManagerHint && (
+            <div
+              className="mb-3 rounded border border-orange-500/40 bg-orange-950/30 px-3 py-2 font-mono text-[11px] text-orange-200"
+              role="status"
+            >
+              Tap <span className="text-orange-400">Vince Cole (V)</span> bottom-right
+              to get your first order — the tape won&apos;t move until then.
+            </div>
+          )}
+          {conductFlash && (
+            <p className="mb-3 font-mono text-[11px] text-cyan-300" role="status">
+              {conductFlash}
+            </p>
+          )}
+          {marketClockPaused && !showManagerHint && (
+            <p className="mb-3 font-mono text-[10px] text-zinc-500">
+              Tape paused — waiting for manager instruction.
+            </p>
+          )}
           <MarketShockBanner active={marketShockActive} />
           <TradingDeskView
             priceHistory={priceHistory}
@@ -939,6 +1051,9 @@ export function Dashboard() {
             glitchLocked={state.glitchActive}
             buyDisabled={!buyAllowed}
             sellDisabled={!sellAllowed}
+            suggestedSize={suggestedShareSize}
+            instructionLabel={instructionLabel}
+            lockReason={!tradeUnlocked ? tradeLockReason : null}
             onBuy={executeBuy}
             onSell={executeSell}
           />
@@ -951,12 +1066,8 @@ export function Dashboard() {
           totalMs={orderCountdown.totalMs}
         />
       )}
-      {state.currentInstruction && (
-        <p className="mt-3 font-mono text-[10px] text-zinc-500">
-          Active instruction: {state.currentInstruction.action.toUpperCase()}{' '}
-          {state.currentInstruction.sizePctOfCash}% —{' '}
-          {tradeUnlocked ? 'unlocked' : 'locked'}
-        </p>
+      {tradeLockReason && (
+        <p className="mt-3 font-mono text-[10px] text-zinc-400">{tradeLockReason}</p>
       )}
     </div>
   );
@@ -1036,7 +1147,16 @@ export function Dashboard() {
           }}
         >
           {scenarios.map((s) => (
-            <option key={s.id} value={s.id} disabled={s.locked}>
+            <option
+              key={s.id}
+              value={s.id}
+              disabled={s.locked}
+              title={
+                s.locked
+                  ? 'Unlock more scenarios in a future release — finish 2008 sessions to build rank.'
+                  : undefined
+              }
+            >
               {s.displayName}
               {s.locked ? ' (Coming soon)' : ''}
             </option>
