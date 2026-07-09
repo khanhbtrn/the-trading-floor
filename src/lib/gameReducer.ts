@@ -2,19 +2,15 @@ import type { GameAction, GameState } from './types';
 
 export const INITIAL_CONDUCT_SCORE = 100;
 export const DEFAULT_STARTING_CASH = 100_000;
-
-function createPlayerId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `player-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
+export const MAX_POSITION_PCT_OF_CASH = 50;
+export const GLITCH_TICK = 20;
 
 export const initialGameState: GameState = {
   playerId: '',
-  playerName: 'Trader',
+  playerName: '',
   rank: 'Junior Trader',
   careerPnL: 0,
+  sessionsPlayed: 0,
   sessionPnL: 0,
   position: { qty: 0, avgPrice: 0 },
   cash: 0,
@@ -22,6 +18,8 @@ export const initialGameState: GameState = {
   currentScenarioId: null,
   conductScore: INITIAL_CONDUCT_SCORE,
   auditTrail: [],
+  currentInstruction: null,
+  blocked: false,
   glitchActive: false,
 };
 
@@ -30,17 +28,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'RESET':
       return {
         ...initialGameState,
-        playerId: state.playerId || createPlayerId(),
+        playerId: state.playerId,
         playerName: state.playerName,
         rank: state.rank,
         careerPnL: state.careerPnL,
+        sessionsPlayed: state.sessionsPlayed,
       };
 
-    case 'INIT_PLAYER':
+    case 'LOAD_PLAYER':
       return {
         ...state,
         playerId: action.playerId,
         playerName: action.playerName,
+        rank: action.rank,
+        careerPnL: action.careerPnL,
+        sessionsPlayed: action.sessionsPlayed,
       };
 
     case 'START_SESSION':
@@ -53,6 +55,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         pnl: 0,
         conductScore: INITIAL_CONDUCT_SCORE,
         auditTrail: [],
+        currentInstruction: null,
+        blocked: false,
         glitchActive: false,
       };
 
@@ -62,12 +66,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         sessionPnL: 0,
         rank: action.rank,
         careerPnL: action.careerPnL,
+        sessionsPlayed: action.sessionsPlayed,
         currentScenarioId: null,
         position: { qty: 0, avgPrice: 0 },
         cash: 0,
         pnl: 0,
         conductScore: INITIAL_CONDUCT_SCORE,
         auditTrail: [],
+        currentInstruction: null,
+        blocked: false,
         glitchActive: false,
       };
 

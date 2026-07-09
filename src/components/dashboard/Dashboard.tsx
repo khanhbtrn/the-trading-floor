@@ -1,125 +1,210 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { PageShell } from '@/components/PageShell';
-import { NpcChatView, type ChatMessage } from '@/components/npc-chat';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DashboardShell } from '@/components/dashboard-shell';
+import { PlayerLogin } from '@/components/player-login';
+import { ScorecardModal } from '@/components/scorecard-modal';
+import { SidebarNpcPanel } from '@/components/sidebar-npc-panel';
+import type { ChatMessage } from '@/components/npc-chat';
 import type { PriceHistoryPoint } from '@/components/trading-desk';
 import { TradingDeskView } from '@/components/trading-desk';
 import { useGame } from '@/context/GameProvider';
 import { parseScenarioCsv } from '@/lib/csv';
-import { DEFAULT_STARTING_CASH } from '@/lib/gameReducer';
+import {
+  DEFAULT_STARTING_CASH,
+  GLITCH_TICK,
+  MAX_POSITION_PCT_OF_CASH,
+} from '@/lib/gameReducer';
 import { requestNpc } from '@/lib/npcClient';
-import { persistPlayerSession } from '@/lib/persistPlayer';
+import {
+  createPlayer,
+  fetchPlayer,
+  getStoredPlayerId,
+  playerRowToRank,
+  storePlayerId,
+} from '@/lib/playerService';
 import { computeRank } from '@/lib/rank';
 import { getScenarioById, scenarios } from '@/lib/scenarios';
-import type { TradeInstruction } from '@/lib/types';
+import { endSession, fetchLeaderboard } from '@/lib/sessionApi';
+import type { LeaderboardEntry, Rank } from '@/lib/types';
 import { useSpeechInput } from '@/lib/useSpeechInput';
 
 const TICK_MS = 1000;
-const MAX_POSITION_PCT = 50;
-
-type Phase =
-  | 'lobby'
-  | 'briefing'
-  | 'risk-check'
-  | 'escalation'
-  | 'desk'
-  | 'scorecard';
+const MANAGER_GREETING =
+  'Morning. The tape is unstable. Give me your read before we size this ticket.';
+const COMPLIANCE_GREETING =
+  'Compliance here. Your instruction breached the desk position limit. Justify this trade.';
+const TECH_GREETING =
+  'Desk support. Trading feed is frozen — describe what you see on your blotter.';
 
 export function Dashboard() {
   const { state, dispatch } = useGame();
-  const [phase, setPhase] = useState<Phase>('lobby');
-  const [nameInput, setNameInput] = useState(state.playerName);
-  const [currentInstruction, setCurrentInstruction] =
-    useState<TradeInstruction | null>(null);
-  const [riskBlocked, setRiskBlocked] = useState(false);
+
+  const [playerReady, setPlayerReady] = useState(false);
+  const [playerLoading, setPlayerLoading] = useState(true);
+  const [playerError, setPlayerError] = useState<string | null>(null);
+
+  const [selectedScenarioId, setSelectedScenarioId] = useState('2008');
   const [tick, setTick] = useState(0);
   const [price, setPrice] = useState(0);
   const [rows, setRows] = useState<ReturnType<typeof parseScenarioCsv>>([]);
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
-  const [persistStatus, setPersistStatus] = useState<string | null>(null);
-  const [lastSession, setLastSession] = useState<{
+  const glitchTriggered = useRef(false);
+
+  const [managerMessages, setManagerMessages] = useState<ChatMessage[]>([
+    { role: 'npc', text: MANAGER_GREETING },
+  ]);
+  const [complianceMessages, setComplianceMessages] = useState<ChatMessage[]>([
+    { role: 'npc', text: COMPLIANCE_GREETING },
+  ]);
+  const [techMessages, setTechMessages] = useState<ChatMessage[]>([
+    { role: 'npc', text: TECH_GREETING },
+  ]);
+  const [managerLoading, setManagerLoading] = useState(false);
+  const [complianceLoading, setComplianceLoading] = useState(false);
+  const [techLoading, setTechLoading] = useState(false);
+  const [managerBadge, setManagerBadge] = useState(false);
+  const [complianceBadge, setComplianceBadge] = useState(false);
+  const [techBadge, setTechBadge] = useState(false);
+  const [overrideGranted, setOverrideGranted] = useState(false);
+  const [riskStatus, setRiskStatus] = useState<string | null>(null);
+
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+
+  const [scorecardOpen, setScorecardOpen] = useState(false);
+  const [scorecardData, setScorecardData] = useState<{
     sessionPnL: number;
     careerPnL: number;
     conductScore: number;
-    rank: string;
+    rank: Rank;
     auditTrail: typeof state.auditTrail;
+    persistMessage: string | null;
   } | null>(null);
-
-  const [briefingMessages, setBriefingMessages] = useState<ChatMessage[]>([
-    {
-      role: 'npc',
-      text: 'Morning. The tape is unstable. Give me your read before we size this ticket.',
-    },
-  ]);
-  const [briefingLoading, setBriefingLoading] = useState(false);
-  const [instructionIssued, setInstructionIssued] = useState(false);
-
-  const [escalationMessages, setEscalationMessages] = useState<ChatMessage[]>([
-    {
-      role: 'npc',
-      text: 'Compliance here. Your instruction breached the desk position limit. Justify this trade.',
-    },
-  ]);
-  const [escalationLoading, setEscalationLoading] = useState(false);
-  const [escalationResolved, setEscalationResolved] = useState(false);
-
-  const [techMessages, setTechMessages] = useState<ChatMessage[]>([
-    {
-      role: 'npc',
-      text: 'Desk support. Trading feed is frozen — describe what you see on your blotter.',
-    },
-  ]);
-  const [techLoading, setTechLoading] = useState(false);
-  const [showTechOverlay, setShowTechOverlay] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
 
   const scenario = state.currentScenarioId
     ? getScenarioById(state.currentScenarioId)
     : null;
 
-  useEffect(() => {
-    setNameInput(state.playerName);
-  }, [state.playerName]);
+  const loadLeaderboard = useCallback(async () => {
+    setLeaderboardLoading(true);
+    const entries = await fetchLeaderboard();
+    setLeaderboard(entries);
+    setLeaderboardLoading(false);
+  }, []);
 
-  const startScenario = (scenarioId: string) => {
+  const hydratePlayer = useCallback(async () => {
+    setPlayerLoading(true);
+    setPlayerError(null);
+
+    const storedId = getStoredPlayerId();
+    if (!storedId) {
+      setPlayerLoading(false);
+      return;
+    }
+
+    const row = await fetchPlayer(storedId);
+    if (!row) {
+      setPlayerLoading(false);
+      return;
+    }
+
+    dispatch({
+      type: 'LOAD_PLAYER',
+      playerId: row.id,
+      playerName: row.player_name,
+      rank: playerRowToRank(row.rank),
+      careerPnL: Number(row.career_pnl),
+      sessionsPlayed: row.sessions_played ?? 0,
+    });
+    setPlayerReady(true);
+    setPlayerLoading(false);
+  }, [dispatch]);
+
+  useEffect(() => {
+    void hydratePlayer();
+    void loadLeaderboard();
+  }, [hydratePlayer, loadLeaderboard]);
+
+  useEffect(() => {
+    if (playerReady && !state.currentScenarioId) {
+      const config = getScenarioById(selectedScenarioId);
+      if (config && !config.locked) {
+        startSession(selectedScenarioId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerReady]);
+
+  const handleCreatePlayer = async (name: string) => {
+    setPlayerLoading(true);
+    setPlayerError(null);
+
+    const row = await createPlayer(name);
+    if (!row) {
+      const offlineId =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `local-${Date.now()}`;
+      storePlayerId(offlineId);
+      dispatch({
+        type: 'LOAD_PLAYER',
+        playerId: offlineId,
+        playerName: name,
+        rank: 'Junior Trader',
+        careerPnL: 0,
+        sessionsPlayed: 0,
+      });
+      setPlayerReady(true);
+      setPlayerLoading(false);
+      setPlayerError(null);
+      return;
+    }
+
+    dispatch({
+      type: 'LOAD_PLAYER',
+      playerId: row.id,
+      playerName: row.player_name,
+      rank: playerRowToRank(row.rank),
+      careerPnL: Number(row.career_pnl),
+      sessionsPlayed: row.sessions_played ?? 0,
+    });
+    setPlayerReady(true);
+    setPlayerLoading(false);
+  };
+
+  const resetNpcChats = () => {
+    setManagerMessages([{ role: 'npc', text: MANAGER_GREETING }]);
+    setComplianceMessages([{ role: 'npc', text: COMPLIANCE_GREETING }]);
+    setTechMessages([{ role: 'npc', text: TECH_GREETING }]);
+    setManagerBadge(false);
+    setComplianceBadge(false);
+    setTechBadge(false);
+    setOverrideGranted(false);
+    setRiskStatus(null);
+    glitchTriggered.current = false;
+  };
+
+  const startSession = (scenarioId: string) => {
+    const config = getScenarioById(scenarioId);
+    if (!config || config.locked) return;
+
     dispatch({
       type: 'START_SESSION',
       scenarioId,
       startingCash: DEFAULT_STARTING_CASH,
     });
-    setCurrentInstruction(null);
-    setRiskBlocked(false);
     setTick(0);
     setPrice(0);
     setRows([]);
-    setInstructionIssued(false);
-    setEscalationResolved(false);
-    setShowTechOverlay(false);
-    setPersistStatus(null);
-    setBriefingMessages([
-      {
-        role: 'npc',
-        text: 'Morning. The tape is unstable. Give me your read before we size this ticket.',
-      },
-    ]);
-    setEscalationMessages([
-      {
-        role: 'npc',
-        text: 'Compliance here. Your instruction breached the desk position limit. Justify this trade.',
-      },
-    ]);
-    setTechMessages([
-      {
-        role: 'npc',
-        text: 'Desk support. Trading feed is frozen — describe what you see on your blotter.',
-      },
-    ]);
-    setPhase('briefing');
+    resetNpcChats();
   };
 
   useEffect(() => {
-    if (phase !== 'desk' || !scenario) return;
+    if (!state.currentScenarioId || !scenario) return;
+
     let active = true;
     setCsvLoading(true);
     setCsvError(null);
@@ -148,10 +233,10 @@ export function Dashboard() {
     return () => {
       active = false;
     };
-  }, [phase, scenario]);
+  }, [state.currentScenarioId, scenario]);
 
   useEffect(() => {
-    if (phase !== 'desk' || !rows.length || state.glitchActive) return;
+    if (!rows.length || state.glitchActive || !state.currentScenarioId) return;
     if (tick >= rows.length - 1) return;
 
     const timer = setTimeout(() => {
@@ -169,53 +254,88 @@ export function Dashboard() {
 
     return () => clearTimeout(timer);
   }, [
-    phase,
     rows,
     tick,
     state.glitchActive,
     state.cash,
     state.position.qty,
+    state.currentScenarioId,
     dispatch,
   ]);
 
-  const sendBriefing = useCallback(
+  useEffect(() => {
+    if (
+      tick === GLITCH_TICK &&
+      !glitchTriggered.current &&
+      state.currentScenarioId &&
+      rows.length > GLITCH_TICK
+    ) {
+      glitchTriggered.current = true;
+      dispatch({ type: 'PATCH', patch: { glitchActive: true } });
+      setTechBadge(true);
+    }
+  }, [tick, state.currentScenarioId, rows.length, dispatch]);
+
+  const evaluateInstruction = useCallback(
+    (instruction: NonNullable<typeof state.currentInstruction>) => {
+      const failsRisk = instruction.sizePctOfCash > MAX_POSITION_PCT_OF_CASH;
+      if (failsRisk) {
+        dispatch({ type: 'PATCH', patch: { blocked: true } });
+        setRiskStatus('BLOCKED — see Compliance');
+        setComplianceBadge(true);
+      } else {
+        dispatch({ type: 'PATCH', patch: { blocked: false } });
+        setRiskStatus('PASS — execute on desk');
+      }
+    },
+    [dispatch]
+  );
+
+  const sendManager = useCallback(
     async (text: string) => {
       const userMessage: ChatMessage = { role: 'user', text };
-      const nextMessages = [...briefingMessages, userMessage];
-      setBriefingMessages(nextMessages);
-      setBriefingLoading(true);
+      const nextMessages = [...managerMessages, userMessage];
+      setManagerMessages(nextMessages);
+      setManagerLoading(true);
 
       try {
         const npc = await requestNpc('manager', nextMessages);
-        setBriefingMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
+        setManagerMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
+        setManagerBadge(true);
+
         if (npc.instruction) {
-          setCurrentInstruction(npc.instruction);
-          setInstructionIssued(true);
+          dispatch({
+            type: 'PATCH',
+            patch: { currentInstruction: npc.instruction },
+          });
+          evaluateInstruction(npc.instruction);
         }
       } finally {
-        setBriefingLoading(false);
+        setManagerLoading(false);
       }
     },
-    [briefingMessages]
+    [managerMessages, dispatch, evaluateInstruction]
   );
 
-  const sendEscalation = useCallback(
+  const sendCompliance = useCallback(
     async (text: string) => {
       const userMessage: ChatMessage = { role: 'user', text };
-      const nextMessages = [...escalationMessages, userMessage];
-      setEscalationMessages(nextMessages);
-      setEscalationLoading(true);
+      const nextMessages = [...complianceMessages, userMessage];
+      setComplianceMessages(nextMessages);
+      setComplianceLoading(true);
 
       try {
         const npc = await requestNpc('compliance', nextMessages);
-        setEscalationMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
+        setComplianceMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
+        setComplianceBadge(true);
 
         if (!npc.blocked) {
-          setEscalationResolved(true);
-          setRiskBlocked(false);
+          setOverrideGranted(true);
           dispatch({
             type: 'PATCH',
             patch: {
+              blocked: false,
+              conductScore: Math.max(0, state.conductScore - 20),
               auditTrail: [
                 ...state.auditTrail,
                 {
@@ -226,12 +346,23 @@ export function Dashboard() {
               ],
             },
           });
+          setRiskStatus('Override approved — execute on desk');
+        } else {
+          dispatch({
+            type: 'PATCH',
+            patch: {
+              auditTrail: [
+                ...state.auditTrail,
+                { source: 'blocked', tick, note: 'Compliance rejected override' },
+              ],
+            },
+          });
         }
       } finally {
-        setEscalationLoading(false);
+        setComplianceLoading(false);
       }
     },
-    [escalationMessages, dispatch, state.auditTrail, tick]
+    [complianceMessages, dispatch, state.auditTrail, state.conductScore, tick]
   );
 
   const sendTech = useCallback(
@@ -244,6 +375,7 @@ export function Dashboard() {
       try {
         const npc = await requestNpc('tech', nextMessages);
         setTechMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
+        setTechBadge(true);
 
         if (npc.resolvesGlitch) {
           dispatch({
@@ -256,7 +388,6 @@ export function Dashboard() {
               ],
             },
           });
-          setShowTechOverlay(false);
         }
       } finally {
         setTechLoading(false);
@@ -265,77 +396,21 @@ export function Dashboard() {
     [techMessages, dispatch, state.auditTrail, tick]
   );
 
-  const { speechSupported, startListening: startBriefingMic } =
-    useSpeechInput((t) => void sendBriefing(t));
-  const { startListening: startEscalationMic } = useSpeechInput((t) =>
-    void sendEscalation(t)
+  const { speechSupported, startListening: startManagerMic } = useSpeechInput((t) =>
+    void sendManager(t)
+  );
+  const { startListening: startComplianceMic } = useSpeechInput((t) =>
+    void sendCompliance(t)
   );
   const { startListening: startTechMic } = useSpeechInput((t) => void sendTech(t));
 
-  const proceedFromBriefing = () => {
-    if (!currentInstruction) return;
-    const blocked = currentInstruction.sizePctOfCash > MAX_POSITION_PCT;
-    setRiskBlocked(blocked);
-    setPhase('risk-check');
-  };
-
-  const proceedFromRiskCheck = () => {
-    if (riskBlocked) {
-      setPhase('escalation');
-    } else {
-      setPhase('desk');
-    }
-  };
-
-  const proceedFromEscalation = () => {
-    setPhase('desk');
-  };
-
-  const endSession = useCallback(async () => {
-    const sessionRank = computeRank(state.pnl, state.conductScore);
-    const newCareerPnL = state.careerPnL + state.pnl;
-
-    setLastSession({
-      sessionPnL: state.pnl,
-      careerPnL: newCareerPnL,
-      conductScore: state.conductScore,
-      rank: sessionRank,
-      auditTrail: [...state.auditTrail],
-    });
-
-    dispatch({
-      type: 'END_SESSION',
-      sessionPnL: state.pnl,
-      rank: sessionRank,
-      careerPnL: newCareerPnL,
-    });
-
-    const result = await persistPlayerSession(
-      state.playerId,
-      sessionRank,
-      newCareerPnL
-    );
-
-    setPersistStatus(
-      result.persisted
-        ? 'Career progress saved.'
-        : `Session ended (save skipped: ${result.reason ?? 'unknown'})`
-    );
-    setPhase('scorecard');
-  }, [state, dispatch]);
-
-  const priceHistory = useMemo<PriceHistoryPoint[]>(
-    () =>
-      rows.slice(0, tick + 1).map((r) => ({
-        date: r.date,
-        price: r.close,
-      })),
-    [rows, tick]
-  );
+  const tradeUnlocked =
+    !!state.currentInstruction && !state.blocked && !state.glitchActive;
+  const managerGreyed = state.blocked && !overrideGranted;
 
   const executeBuy = (size: number) => {
-    if (state.glitchActive || size <= 0) {
-      if (state.glitchActive) {
+    if (!tradeUnlocked || state.currentInstruction?.action !== 'buy' || size <= 0) {
+      if (state.glitchActive && size > 0) {
         dispatch({
           type: 'PATCH',
           patch: {
@@ -369,7 +444,7 @@ export function Dashboard() {
         auditTrail: [
           ...state.auditTrail,
           {
-            source: riskBlocked && escalationResolved ? 'player-override' : 'ai-instructed',
+            source: overrideGranted ? 'player-override' : 'ai-instructed',
             action: 'buy',
             size,
             price,
@@ -381,8 +456,8 @@ export function Dashboard() {
   };
 
   const executeSell = (size: number) => {
-    if (state.glitchActive || size <= 0) {
-      if (state.glitchActive) {
+    if (!tradeUnlocked || state.currentInstruction?.action !== 'sell' || size <= 0) {
+      if (state.glitchActive && size > 0) {
         dispatch({
           type: 'PATCH',
           patch: {
@@ -414,7 +489,7 @@ export function Dashboard() {
         auditTrail: [
           ...state.auditTrail,
           {
-            source: riskBlocked && escalationResolved ? 'player-override' : 'ai-instructed',
+            source: overrideGranted ? 'player-override' : 'ai-instructed',
             action: 'sell',
             size,
             price,
@@ -425,240 +500,269 @@ export function Dashboard() {
     });
   };
 
-  const sessionComplete = rows.length > 0 && tick >= rows.length - 1;
+  const handleEndSession = async () => {
+    if (!state.currentScenarioId || endingSession) return;
+    setEndingSession(true);
 
-  const headerSubtitle = useMemo(() => {
-    const parts = [
-      state.playerName,
-      state.rank,
-      scenario ? `${scenario.ticker} — ${scenario.dateRange}` : null,
-    ].filter(Boolean);
-    return parts.join(' · ');
-  }, [state.playerName, state.rank, scenario]);
+    const newCareerPnL = state.careerPnL + state.pnl;
+    const newRank = computeRank(newCareerPnL, state.conductScore);
+    const newSessionsPlayed = state.sessionsPlayed + 1;
+    const snapshot = {
+      sessionPnL: state.pnl,
+      careerPnL: newCareerPnL,
+      conductScore: state.conductScore,
+      rank: newRank,
+      auditTrail: [...state.auditTrail],
+    };
+
+    const result = await endSession({
+      playerId: state.playerId,
+      scenarioId: state.currentScenarioId,
+      sessionPnL: state.pnl,
+      conductScore: state.conductScore,
+      finalRank: newRank,
+      careerPnL: newCareerPnL,
+      sessionsPlayed: newSessionsPlayed,
+    });
+
+    dispatch({
+      type: 'END_SESSION',
+      rank: newRank,
+      careerPnL: newCareerPnL,
+      sessionsPlayed: newSessionsPlayed,
+    });
+
+    setScorecardData({
+      ...snapshot,
+      persistMessage: result.ok
+        ? 'Career progress saved to Supabase.'
+        : `Session ended (save skipped: ${result.reason ?? 'unknown'})`,
+    });
+    setScorecardOpen(true);
+    setEndingSession(false);
+    void loadLeaderboard();
+    resetNpcChats();
+    setTick(0);
+    setPrice(0);
+    setRows([]);
+  };
+
+  const priceHistory = useMemo<PriceHistoryPoint[]>(
+    () =>
+      rows.slice(0, tick + 1).map((r) => ({
+        date: r.date,
+        price: r.close,
+      })),
+    [rows, tick]
+  );
+
+  if (!playerReady) {
+    return (
+      <PlayerLogin
+        onSubmit={handleCreatePlayer}
+        loading={playerLoading}
+        error={playerError}
+      />
+    );
+  }
+
+  const topBar = (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs">
+      <span className="text-zinc-300">
+        Welcome back, <span className="text-cyan-300">{state.playerName}</span>
+      </span>
+      <span className="text-zinc-500">|</span>
+      <span>
+        Rank: <span className="text-cyan-300">{state.rank}</span>
+      </span>
+      <span className="text-zinc-500">|</span>
+      <span>
+        Career P&amp;L:{' '}
+        <span className={state.careerPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+          ${state.careerPnL.toFixed(2)}
+        </span>
+      </span>
+      {state.glitchActive && (
+        <>
+          <span className="text-zinc-500">|</span>
+          <span className="text-amber-400">GLITCH ACTIVE</span>
+        </>
+      )}
+    </div>
+  );
+
+  const leftSidebar = (
+    <div className="space-y-4 font-mono text-[11px]">
+      <div>
+        <p className="font-pixel text-[8px] text-zinc-500">CAREER</p>
+        <p className="mt-2 text-zinc-300">{state.rank}</p>
+        <p className="text-zinc-500">
+          Career P&amp;L: ${state.careerPnL.toFixed(2)}
+        </p>
+        <p className="text-zinc-500">Sessions: {state.sessionsPlayed}</p>
+        <p className="text-zinc-500">Conduct: {state.conductScore}</p>
+      </div>
+      <div>
+        <p className="font-pixel text-[8px] text-zinc-500">LEADERBOARD</p>
+        {leaderboardLoading && (
+          <p className="mt-2 text-zinc-600">Loading…</p>
+        )}
+        {!leaderboardLoading && leaderboard.length === 0 && (
+          <p className="mt-2 text-zinc-600">No players yet</p>
+        )}
+        <ul className="mt-2 space-y-1">
+          {leaderboard.map((entry, i) => (
+            <li key={i} className="text-zinc-400">
+              {entry.player_name}
+              <br />
+              <span className="text-zinc-600">
+                {entry.rank} · ${entry.career_pnl.toFixed(0)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+
+  const center = (
+    <div>
+      {!state.currentScenarioId && (
+        <p className="mb-4 font-mono text-sm text-zinc-500">
+          Select a scenario below to begin a session.
+        </p>
+      )}
+      {csvLoading && (
+        <p className="mb-4 font-mono text-sm text-zinc-400">Loading CSV feed…</p>
+      )}
+      {csvError && (
+        <p className="mb-4 font-mono text-sm text-red-400">{csvError}</p>
+      )}
+      {state.currentScenarioId && !csvLoading && !csvError && rows.length > 0 && (
+        <TradingDeskView
+          priceHistory={priceHistory}
+          position={state.position}
+          cash={state.cash}
+          pnl={state.pnl}
+          disabled={!tradeUnlocked}
+          onBuy={executeBuy}
+          onSell={executeSell}
+        />
+      )}
+      {state.currentInstruction && (
+        <p className="mt-3 font-mono text-[10px] text-zinc-500">
+          Active instruction: {state.currentInstruction.action.toUpperCase()}{' '}
+          {state.currentInstruction.sizePctOfCash}% —{' '}
+          {tradeUnlocked ? 'unlocked' : 'locked'}
+        </p>
+      )}
+    </div>
+  );
+
+  const rightSidebar = (
+    <>
+      <SidebarNpcPanel
+        title="Manager"
+        messages={managerMessages}
+        isLoading={managerLoading}
+        disabled={managerGreyed}
+        badge={managerBadge}
+        statusLine={riskStatus ?? undefined}
+        showFreeTextInput={!managerGreyed}
+        onSend={(text) => void sendManager(text)}
+        onMicPress={speechSupported ? startManagerMic : undefined}
+        footerExtra={
+          state.currentInstruction ? (
+            <p className="px-2 pb-2 font-mono text-[9px] text-cyan-600">
+              {state.currentInstruction.action.toUpperCase()}{' '}
+              {state.currentInstruction.sizePctOfCash}% —{' '}
+              {state.currentInstruction.reason}
+            </p>
+          ) : undefined
+        }
+      />
+      <SidebarNpcPanel
+        title="Compliance"
+        messages={complianceMessages}
+        isLoading={complianceLoading}
+        disabled={!state.blocked}
+        highlighted={state.blocked && !overrideGranted}
+        badge={complianceBadge}
+        showFreeTextInput={state.blocked && !overrideGranted}
+        onSend={(text) => void sendCompliance(text)}
+        onMicPress={speechSupported ? startComplianceMic : undefined}
+      />
+      <SidebarNpcPanel
+        title="Tech"
+        messages={techMessages}
+        isLoading={techLoading}
+        highlighted={state.glitchActive}
+        badge={techBadge}
+        showFreeTextInput={state.glitchActive}
+        onSend={(text) => void sendTech(text)}
+        onMicPress={speechSupported ? startTechMic : undefined}
+      />
+    </>
+  );
+
+  const bottomBar = (
+    <>
+      <label className="flex items-center gap-2 font-mono text-xs text-zinc-400">
+        Scenario
+        <select
+          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
+          value={selectedScenarioId}
+          onChange={(e) => {
+            const id = e.target.value;
+            setSelectedScenarioId(id);
+            const config = getScenarioById(id);
+            if (config && !config.locked) {
+              startSession(id);
+            }
+          }}
+        >
+          {scenarios.map((s) => (
+            <option key={s.id} value={s.id} disabled={s.locked}>
+              {s.displayName}
+              {s.locked ? ' (Coming soon)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="rounded border border-cyan-700 px-4 py-2 font-mono text-xs text-cyan-300 disabled:opacity-40"
+        disabled={!state.currentScenarioId || endingSession}
+        onClick={() => void handleEndSession()}
+      >
+        {endingSession ? 'Saving…' : 'End Session'}
+      </button>
+    </>
+  );
 
   return (
-    <PageShell title="TRADING FLOOR // 2008" subtitle={headerSubtitle}>
-      <div className="mb-6 flex flex-wrap gap-3 font-mono text-xs text-zinc-500">
-        <span>Career P&amp;L: ${state.careerPnL.toFixed(2)}</span>
-        <span>Session P&amp;L: ${state.sessionPnL.toFixed(2)}</span>
-        <span>Conduct: {state.conductScore}</span>
-        {state.glitchActive && (
-          <span className="text-amber-400">GLITCH ACTIVE</span>
-        )}
-      </div>
-
-      {phase === 'lobby' && (
-        <section className="space-y-6">
-          <div className="rounded border border-zinc-800 p-4">
-            <label className="font-mono text-xs text-zinc-500">Trader name</label>
-            <input
-              className="mt-2 w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm text-zinc-200"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onBlur={() =>
-                dispatch({
-                  type: 'PATCH',
-                  patch: { playerName: nameInput.trim() || 'Trader' },
-                })
-              }
-            />
-          </div>
-
-          <ul className="space-y-4">
-            {scenarios.map((s) => (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  className="w-full rounded border border-cyan-800/50 bg-zinc-900/60 p-5 text-left transition hover:border-cyan-500/60 hover:bg-zinc-900"
-                  onClick={() => startScenario(s.id)}
-                >
-                  <p className="font-pixel text-[10px] text-cyan-300">
-                    {s.displayName}
-                  </p>
-                  <p className="mt-2 font-mono text-sm text-zinc-300">
-                    {s.ticker} — {s.dateRange}
-                  </p>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {phase === 'briefing' && scenario && (
-        <NpcChatView
-          messages={briefingMessages}
-          npcName="Manager"
-          isLoading={briefingLoading}
-          showFreeTextInput={!instructionIssued}
-          onSend={(text) => void sendBriefing(text)}
-          onMicPress={speechSupported ? startBriefingMic : undefined}
-          instructionPreview={
-            currentInstruction
-              ? `${currentInstruction.action.toUpperCase()} ${currentInstruction.sizePctOfCash}% cash (${currentInstruction.reason})`
-              : undefined
-          }
-          onProceed={currentInstruction ? proceedFromBriefing : undefined}
-          proceedLabel="Proceed to Risk Check"
+    <>
+      <DashboardShell
+        topBarContent={topBar}
+        leftSidebarContent={leftSidebar}
+        centerContent={center}
+        rightSidebarContent={rightSidebar}
+        bottomBarContent={bottomBar}
+      />
+      {scorecardOpen && scorecardData && (
+        <ScorecardModal
+          sessionPnL={scorecardData.sessionPnL}
+          careerPnL={scorecardData.careerPnL}
+          conductScore={scorecardData.conductScore}
+          rank={scorecardData.rank}
+          auditTrail={scorecardData.auditTrail}
+          persistMessage={scorecardData.persistMessage}
+          onClose={() => {
+            setScorecardOpen(false);
+            setScorecardData(null);
+          }}
         />
       )}
-
-      {phase === 'risk-check' && (
-        <section>
-          <div
-            className={`rounded border p-8 text-center font-pixel text-lg ${
-              riskBlocked
-                ? 'border-red-500/60 bg-red-950/30 text-red-400'
-                : 'border-emerald-500/60 bg-emerald-950/30 text-emerald-400'
-            }`}
-          >
-            {riskBlocked ? 'BLOCKED' : 'PASS'}
-          </div>
-          <p className="mt-4 font-mono text-sm text-zinc-400">
-            {riskBlocked
-              ? 'Position would exceed 50% of capital — escalation required.'
-              : 'Instruction within desk limits.'}
-          </p>
-          <button
-            type="button"
-            className="mt-6 rounded border border-cyan-700 px-4 py-2 font-mono text-sm text-cyan-300 hover:bg-cyan-950/40"
-            onClick={proceedFromRiskCheck}
-          >
-            {riskBlocked ? 'Open Compliance Chat' : 'Open Trading Desk'}
-          </button>
-        </section>
-      )}
-
-      {phase === 'escalation' && (
-        <NpcChatView
-          messages={escalationMessages}
-          npcName="Compliance"
-          isLoading={escalationLoading}
-          showFreeTextInput={!escalationResolved}
-          onSend={(text) => void sendEscalation(text)}
-          onMicPress={speechSupported ? startEscalationMic : undefined}
-          instructionPreview={
-            escalationResolved ? 'Override approved. Proceed to desk.' : undefined
-          }
-          onProceed={escalationResolved ? proceedFromEscalation : undefined}
-          proceedLabel="Open Trading Desk"
-        />
-      )}
-
-      {phase === 'desk' && scenario && (
-        <section className="relative">
-          {csvLoading && (
-            <p className="mb-4 font-mono text-sm text-zinc-400">Loading CSV feed…</p>
-          )}
-          {csvError && (
-            <p className="mb-4 font-mono text-sm text-red-400">{csvError}</p>
-          )}
-          {!csvLoading && !csvError && rows.length > 0 && (
-            <TradingDeskView
-              priceHistory={priceHistory}
-              position={state.position}
-              cash={state.cash}
-              pnl={state.pnl}
-              disabled={state.glitchActive}
-              onBuy={executeBuy}
-              onSell={executeSell}
-            />
-          )}
-
-          {sessionComplete && (
-            <button
-              type="button"
-              className="mt-6 w-full rounded border border-cyan-700 py-3 font-mono text-sm text-cyan-300 hover:bg-cyan-950/40"
-              onClick={() => void endSession()}
-            >
-              End Session → Scorecard
-            </button>
-          )}
-
-          {showTechOverlay && (
-            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
-              <div className="w-full max-w-lg">
-                <NpcChatView
-                  messages={techMessages}
-                  npcName="Tech Support"
-                  isLoading={techLoading}
-                  showFreeTextInput
-                  onSend={(text) => void sendTech(text)}
-                  onMicPress={speechSupported ? startTechMic : undefined}
-                />
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {phase === 'scorecard' && lastSession && (
-        <section>
-          <div className="grid grid-cols-2 gap-4 font-mono text-sm">
-            <div className="rounded border border-zinc-800 p-4">
-              <p className="text-zinc-500">Session P&amp;L</p>
-              <p
-                className={
-                  lastSession.sessionPnL >= 0 ? 'text-emerald-400' : 'text-red-400'
-                }
-              >
-                ${lastSession.sessionPnL.toFixed(2)}
-              </p>
-            </div>
-            <div className="rounded border border-zinc-800 p-4">
-              <p className="text-zinc-500">Career P&amp;L</p>
-              <p
-                className={
-                  lastSession.careerPnL >= 0 ? 'text-emerald-400' : 'text-red-400'
-                }
-              >
-                ${lastSession.careerPnL.toFixed(2)}
-              </p>
-            </div>
-            <div className="rounded border border-zinc-800 p-4">
-              <p className="text-zinc-500">Conduct</p>
-              <p className="text-cyan-300">{lastSession.conductScore}</p>
-            </div>
-            <div className="rounded border border-zinc-800 p-4">
-              <p className="text-zinc-500">Rank</p>
-              <p className="font-pixel text-[10px] text-cyan-300">
-                {lastSession.rank}
-              </p>
-            </div>
-          </div>
-
-          {persistStatus && (
-            <p className="mt-4 font-mono text-xs text-zinc-500">{persistStatus}</p>
-          )}
-
-          <div className="mt-6 rounded border border-zinc-800 p-4">
-            <p className="font-pixel text-[10px] text-zinc-500">AUDIT TRAIL</p>
-            <ul className="mt-3 space-y-2 font-mono text-xs text-zinc-400">
-              {lastSession.auditTrail.length === 0 && <li>No entries.</li>}
-              {lastSession.auditTrail.map((entry, i) => (
-                <li key={i} className="rounded bg-zinc-900/60 px-2 py-1">
-                  <span className="text-cyan-600">{entry.source}</span>
-                  {entry.action && ` · ${entry.action}`}
-                  {entry.size != null && ` · size ${entry.size}`}
-                  {entry.note && ` · ${entry.note}`}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <p className="mt-6 font-mono text-xs text-zinc-500">
-            You just traded through the week Lehman Brothers collapsed.
-          </p>
-
-          <button
-            type="button"
-            className="mt-6 w-full rounded border border-cyan-700 py-3 font-mono text-sm text-cyan-300 hover:bg-cyan-950/40"
-            onClick={() => setPhase('lobby')}
-          >
-            Return to Lobby
-          </button>
-        </section>
-      )}
-    </PageShell>
+    </>
   );
 }

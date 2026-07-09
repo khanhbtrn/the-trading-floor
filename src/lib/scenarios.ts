@@ -1,6 +1,5 @@
 import type { ScenarioConfig } from './types';
 
-/** Swappable scenario configs — 2008 content filled in Hour 1:30 data slice. */
 export const scenarios: ScenarioConfig[] = [
   {
     id: '2008',
@@ -8,6 +7,23 @@ export const scenarios: ScenarioConfig[] = [
     ticker: 'SPY',
     dateRange: 'Sept–Dec 2008',
     csvPath: '/data/scenario-2008.csv',
+    locked: false,
+  },
+  {
+    id: 'gme',
+    displayName: 'GME Squeeze',
+    ticker: 'GME',
+    dateRange: 'Jan 2021',
+    csvPath: '',
+    locked: true,
+  },
+  {
+    id: 'covid',
+    displayName: 'COVID Crash',
+    ticker: 'SPY',
+    dateRange: 'Feb–Mar 2020',
+    csvPath: '',
+    locked: true,
   },
 ];
 

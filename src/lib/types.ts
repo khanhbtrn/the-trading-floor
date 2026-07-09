@@ -1,4 +1,4 @@
-/** Game state shape — architecture pivot (single dashboard). */
+/** Game state — Career Edition spec (source of truth). */
 
 export type Rank = 'Junior Trader' | 'Associate' | 'VP' | 'Desk Head';
 
@@ -37,6 +37,7 @@ export interface GameState {
   playerName: string;
   rank: Rank;
   careerPnL: number;
+  sessionsPlayed: number;
   sessionPnL: number;
   position: Position;
   cash: number;
@@ -44,14 +45,28 @@ export interface GameState {
   currentScenarioId: string | null;
   conductScore: number;
   auditTrail: AuditEntry[];
+  currentInstruction: TradeInstruction | null;
+  blocked: boolean;
   glitchActive: boolean;
 }
 
 export type GameAction =
   | { type: 'RESET' }
-  | { type: 'INIT_PLAYER'; playerId: string; playerName: string }
+  | {
+      type: 'LOAD_PLAYER';
+      playerId: string;
+      playerName: string;
+      rank: Rank;
+      careerPnL: number;
+      sessionsPlayed: number;
+    }
   | { type: 'START_SESSION'; scenarioId: string; startingCash: number }
-  | { type: 'END_SESSION'; sessionPnL: number; rank: Rank; careerPnL: number }
+  | {
+      type: 'END_SESSION';
+      rank: Rank;
+      careerPnL: number;
+      sessionsPlayed: number;
+    }
   | { type: 'PATCH'; patch: Partial<GameState> };
 
 export interface ScenarioConfig {
@@ -60,4 +75,11 @@ export interface ScenarioConfig {
   ticker: string;
   dateRange: string;
   csvPath: string;
+  locked?: boolean;
+}
+
+export interface LeaderboardEntry {
+  player_name: string;
+  rank: Rank;
+  career_pnl: number;
 }

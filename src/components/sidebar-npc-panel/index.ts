@@ -1,0 +1,1 @@
+export { SidebarNpcPanel } from './SidebarNpcPanel';
