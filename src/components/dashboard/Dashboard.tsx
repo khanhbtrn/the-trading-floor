@@ -22,14 +22,18 @@ import {
 } from '@/lib/gameReducer';
 import {
   clampConduct,
-  compliantResizeBonus,
   CONDUCT_GLITCH_PANIC_PENALTY,
   CONDUCT_ORDER_EXPIRED,
   CONDUCT_OVERRIDE_PENALTY,
-  instructionFailsRisk,
   MANAGER_NUDGE_LINES,
 } from '@/lib/sessionRules';
 import { requestNpc } from '@/lib/npcClient';
+import { salvageInstructionFromReply } from '@/lib/npc';
+import {
+  computeSuggestedShares,
+  getOrderTicketStatus,
+  instructionStatePatch,
+} from '@/lib/orderTicket';
 import { buildTechDeskContext } from '@/lib/techDeskContext';
 import { usePlayerInit } from '@/hooks/usePlayerInit';
 import { useManagerOrderCountdown } from '@/hooks/useManagerOrderCountdown';
@@ -405,27 +409,24 @@ export function Dashboard() {
     onNudge: handleManagerNudge,
   });
 
-  const evaluateInstruction = useCallback(
+  const applyManagerInstruction = useCallback(
     (instruction: NonNullable<typeof state.currentInstruction>) => {
-      if (instructionFailsRisk(instruction)) {
-        dispatch({ type: 'PATCH', patch: { blocked: true } });
-        setRiskStatus('BLOCKED — see Compliance');
+      setOverrideGranted(false);
+      const { patch, riskStatus, notifyCompliance } = instructionStatePatch(
+        instruction,
+        state.auditTrail,
+        state.conductScore
+      );
+      dispatch({ type: 'PATCH', patch });
+      setRiskStatus(riskStatus);
+      if (notifyCompliance) {
         setComplianceUnread((c) => c + 1);
-      } else {
-        const bonus = compliantResizeBonus(state.auditTrail, instruction);
-        dispatch({
-          type: 'PATCH',
-          patch: {
-            blocked: false,
-            conductScore: clampConduct(state.conductScore + bonus),
-          },
-        });
-        setRiskStatus(
-          bonus > 0 ? 'PASS — compliant resize (+10 conduct)' : 'PASS — execute on desk'
-        );
       }
+      setManagerUrgent(true);
+      setOrderCountdownActive(true);
+      orderCountdown.reset();
     },
-    [dispatch, state.auditTrail, state.conductScore]
+    [dispatch, state.auditTrail, state.conductScore, orderCountdown]
   );
 
   const sendManager = useCallback(
@@ -449,20 +450,18 @@ export function Dashboard() {
         setManagerUnread((c) => c + 1);
 
         if (npc.instruction) {
-          setOverrideGranted(false);
-          dispatch({
-            type: 'PATCH',
-            patch: { currentInstruction: npc.instruction },
-          });
-          setManagerUrgent(true);
-          setOrderCountdownActive(true);
-          evaluateInstruction(npc.instruction);
+          applyManagerInstruction(npc.instruction);
+        } else {
+          const salvaged = salvageInstructionFromReply(npc.reply);
+          if (salvaged) {
+            applyManagerInstruction(salvaged);
+          }
         }
       } finally {
         setManagerLoading(false);
       }
     },
-    [managerMessages, dispatch, evaluateInstruction]
+    [managerMessages, applyManagerInstruction]
   );
 
   const sendCompliance = useCallback(
@@ -509,11 +508,16 @@ export function Dashboard() {
             },
           });
           setRiskStatus('Override approved — execute on desk');
+          if (state.currentInstruction) {
+            setOrderCountdownActive(true);
+            orderCountdown.reset();
+          }
         } else {
           dispatch({
             type: 'PATCH',
             patch: {
               currentInstruction: null,
+              blocked: false,
               auditTrail: [
                 ...state.auditTrail,
                 { source: 'blocked', tick, note: 'Compliance rejected override' },
@@ -581,13 +585,44 @@ export function Dashboard() {
     [techMessages, dispatch, state.auditTrail, state.glitchActive, tick, price, rows, state.position.qty, state.cash, state.pnl]
   );
 
-  const tradeUnlocked =
-    !!state.currentInstruction && !state.blocked && !state.glitchActive;
+  const suggestedSize = useMemo(
+    () =>
+      computeSuggestedShares(
+        state.currentInstruction,
+        state.cash,
+        price,
+        state.position.qty
+      ),
+    [state.currentInstruction, state.cash, price, state.position.qty]
+  );
+
+  const ticketStatus = useMemo(
+    () =>
+      getOrderTicketStatus({
+        instruction: state.currentInstruction,
+        blocked: state.blocked,
+        glitchActive: state.glitchActive,
+        positionQty: state.position.qty,
+        cash: state.cash,
+        price,
+        size: suggestedSize,
+      }),
+    [
+      state.currentInstruction,
+      state.blocked,
+      state.glitchActive,
+      state.position.qty,
+      state.cash,
+      price,
+      suggestedSize,
+    ]
+  );
+
+  const tradeUnlocked = ticketStatus.lockReason === 'ready';
   const managerGreyed =
     state.blocked && !overrideGranted && !!state.currentInstruction;
-  const instructionAction = state.currentInstruction?.action;
-  const buyAllowed = tradeUnlocked && instructionAction === 'buy';
-  const sellAllowed = tradeUnlocked && instructionAction === 'sell';
+  const buyAllowed = ticketStatus.canBuy;
+  const sellAllowed = ticketStatus.canSell;
 
   const executeBuy = (size: number) => {
     if (!tradeUnlocked || state.currentInstruction?.action !== 'buy' || size <= 0) {
@@ -939,6 +974,10 @@ export function Dashboard() {
             glitchLocked={state.glitchActive}
             buyDisabled={!buyAllowed}
             sellDisabled={!sellAllowed}
+            ticketMessage={ticketStatus.message}
+            ticketReady={tradeUnlocked}
+            activeAction={ticketStatus.activeAction}
+            suggestedSize={suggestedSize}
             onBuy={executeBuy}
             onSell={executeSell}
           />

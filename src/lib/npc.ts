@@ -1,5 +1,7 @@
 import type { TradeInstruction } from './types';
 
+export { salvageInstructionFromReply } from './orderTicket';
+
 export type NpcPersona = 'manager' | 'compliance' | 'tech';
 
 export interface NpcMessage {
@@ -22,16 +24,25 @@ function parseInstructionObject(
     ins.sizePctOfCash ?? ins.sizePosition ?? ins.size_pct_of_cash;
   const reason = ins.reason;
 
+  const sizePctOfCash =
+    typeof sizeRaw === 'number'
+      ? sizeRaw
+      : typeof sizeRaw === 'string'
+        ? Number(sizeRaw)
+        : NaN;
+
   if (
     (action === 'buy' || action === 'sell') &&
-    typeof sizeRaw === 'number' &&
-    Number.isFinite(sizeRaw) &&
-    typeof reason === 'string'
+    Number.isFinite(sizePctOfCash) &&
+    sizePctOfCash > 0
   ) {
     return {
       action,
-      sizePctOfCash: sizeRaw,
-      reason,
+      sizePctOfCash,
+      reason:
+        typeof reason === 'string' && reason.trim()
+          ? reason.trim()
+          : 'Desk order',
     };
   }
   return null;
