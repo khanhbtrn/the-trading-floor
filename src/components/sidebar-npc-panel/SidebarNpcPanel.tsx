@@ -22,6 +22,10 @@ export interface SidebarNpcPanelProps {
   showFreeTextInput?: boolean;
   onSend?: (text: string) => void;
   onMicPress?: () => void;
+  showCallButton?: boolean;
+  onCallPress?: () => void;
+  callListening?: boolean;
+  callLabel?: string;
   onClearUnread?: () => void;
   onUserReply?: () => void;
   onInputActiveChange?: (active: boolean) => void;
@@ -43,6 +47,10 @@ export function SidebarNpcPanel({
   showFreeTextInput = true,
   onSend,
   onMicPress,
+  showCallButton,
+  onCallPress,
+  callListening,
+  callLabel,
   onClearUnread,
   onUserReply,
   onInputActiveChange,
@@ -142,6 +150,10 @@ export function SidebarNpcPanel({
               showFreeTextInput={showFreeTextInput && !disabled}
               onSend={onSend}
               onMicPress={onMicPress}
+              showCallButton={showCallButton}
+              onCallPress={onCallPress}
+              callListening={callListening}
+              callLabel={callLabel}
               onUserReply={onUserReply}
               onInputActiveChange={onInputActiveChange}
             />

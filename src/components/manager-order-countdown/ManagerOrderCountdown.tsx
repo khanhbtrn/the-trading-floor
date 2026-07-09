@@ -8,12 +8,18 @@ interface ManagerOrderCountdownProps {
   remainingMs: number;
   totalMs: number;
   visible: boolean;
+  showCallButton?: boolean;
+  onCallPress?: () => void;
+  callListening?: boolean;
 }
 
 export function ManagerOrderCountdown({
   remainingMs,
   totalMs,
   visible,
+  showCallButton = false,
+  onCallPress,
+  callListening = false,
 }: ManagerOrderCountdownProps) {
   if (!visible) return null;
 
@@ -41,6 +47,15 @@ export function ManagerOrderCountdown({
       <p className="manager-countdown__hint font-mono">
         Execute or escalate to Compliance before time runs out.
       </p>
+      {showCallButton && onCallPress && (
+        <button
+          type="button"
+          className={`manager-countdown__call font-pixel ${callListening ? 'manager-countdown__call--live' : ''}`}
+          onClick={onCallPress}
+        >
+          {callListening ? 'LISTENING…' : 'CALL BIG BUCK BRO'}
+        </button>
+      )}
     </div>
   );
 }
