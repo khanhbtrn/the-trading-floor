@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { runIntroMigration } from '@/lib/runIntroMigration';
 import { getSupabaseServer } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -102,6 +103,8 @@ export async function PATCH(request: Request) {
   if (!supabase) {
     return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 });
   }
+
+  await runIntroMigration();
 
   const { data, error } = await supabase
     .from('players')
