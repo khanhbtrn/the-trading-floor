@@ -17,7 +17,7 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 
 const PERSONA_MAX_TOKENS: Record<NpcPersona, number> = {
   manager: 500,
-  compliance: 500,
+  compliance: 180,
   tech: 180,
 };
 
