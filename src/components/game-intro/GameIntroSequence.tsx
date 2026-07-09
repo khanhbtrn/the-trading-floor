@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 import './GameIntroSequence.css';
 
-const MANAGER_NAME = 'Vince Cole';
+const MANAGER_NAME = 'Big Buck Bro';
 
 const SLIDE = {
   initial: { opacity: 0, x: 36 },

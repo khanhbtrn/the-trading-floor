@@ -965,7 +965,7 @@ export function Dashboard() {
     {
       persona: 'manager' as const,
       title: 'Manager',
-      npcDisplayName: 'Vince Cole',
+      npcDisplayName: 'Big Buck Bro',
       messages: managerMessages,
       isLoading: managerLoading,
       disabled: false,
