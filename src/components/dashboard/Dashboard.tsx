@@ -7,7 +7,7 @@ import { PlayerLogin, PlayerBootScreen } from '@/components/player-login';
 import { ScorecardModal } from '@/components/scorecard-modal';
 import { AnimatedPnL } from '@/components/animated-pnl';
 import { RankUpCelebration } from '@/components/rank-up';
-import { SidebarNpcPanel } from '@/components/sidebar-npc-panel';
+import { FloatingNpcComms } from '@/components/floating-npc-comms';
 import type { ChatMessage } from '@/components/npc-chat';
 import type { PriceHistoryPoint } from '@/components/trading-desk';
 import { TradingDeskView } from '@/components/trading-desk';
@@ -676,62 +676,58 @@ export function Dashboard() {
     </div>
   );
 
-  const rightSidebar = (
-    <div className="space-y-3">
-      <SidebarNpcPanel
-        persona="manager"
-        title="Manager"
-        npcDisplayName="Vince Cole"
-        messages={managerMessages}
-        isLoading={managerLoading}
-        disabled={managerGreyed}
-        unreadCount={managerUnread}
-        isUrgent={managerUrgent}
-        statusLine={riskStatus ?? undefined}
-        error={managerError}
-        showFreeTextInput={!managerGreyed}
-        onSend={(text) => void sendManager(text)}
-        onMicPress={speechSupported ? startManagerMic : undefined}
-        onClearUnread={() => setManagerUnread(0)}
-        footerExtra={
-          state.currentInstruction ? (
-            <p className="px-2 pb-2 font-mono text-[9px] text-orange-400/80">
-              {state.currentInstruction.action.toUpperCase()}{' '}
-              {state.currentInstruction.sizePctOfCash}% —{' '}
-              {state.currentInstruction.reason}
-            </p>
-          ) : undefined
-        }
-      />
-      <SidebarNpcPanel
-        persona="compliance"
-        title="Compliance"
-        messages={complianceMessages}
-        isLoading={complianceLoading}
-        disabled={!state.blocked}
-        highlighted={state.blocked && !overrideGranted}
-        unreadCount={complianceUnread}
-        error={complianceError}
-        showFreeTextInput={state.blocked && !overrideGranted}
-        onSend={(text) => void sendCompliance(text)}
-        onMicPress={speechSupported ? startComplianceMic : undefined}
-        onClearUnread={() => setComplianceUnread(0)}
-      />
-      <SidebarNpcPanel
-        persona="tech"
-        title="Tech"
-        messages={techMessages}
-        isLoading={techLoading}
-        highlighted={state.glitchActive}
-        unreadCount={techUnread}
-        error={techError}
-        showFreeTextInput={state.glitchActive}
-        onSend={(text) => void sendTech(text)}
-        onMicPress={speechSupported ? startTechMic : undefined}
-        onClearUnread={() => setTechUnread(0)}
-      />
-    </div>
-  );
+  const npcCommsItems = [
+    {
+      persona: 'manager' as const,
+      title: 'Manager',
+      npcDisplayName: 'Vince Cole',
+      messages: managerMessages,
+      isLoading: managerLoading,
+      disabled: managerGreyed,
+      unreadCount: managerUnread,
+      isUrgent: managerUrgent,
+      statusLine: riskStatus ?? undefined,
+      error: managerError,
+      showFreeTextInput: !managerGreyed,
+      onSend: (text: string) => void sendManager(text),
+      onMicPress: speechSupported ? startManagerMic : undefined,
+      onClearUnread: () => setManagerUnread(0),
+      footerExtra: state.currentInstruction ? (
+        <p className="font-mono text-[9px] text-orange-400/80">
+          {state.currentInstruction.action.toUpperCase()}{' '}
+          {state.currentInstruction.sizePctOfCash}% —{' '}
+          {state.currentInstruction.reason}
+        </p>
+      ) : undefined,
+    },
+    {
+      persona: 'compliance' as const,
+      title: 'Compliance',
+      messages: complianceMessages,
+      isLoading: complianceLoading,
+      disabled: !state.blocked,
+      highlighted: state.blocked && !overrideGranted,
+      unreadCount: complianceUnread,
+      error: complianceError,
+      showFreeTextInput: state.blocked && !overrideGranted,
+      onSend: (text: string) => void sendCompliance(text),
+      onMicPress: speechSupported ? startComplianceMic : undefined,
+      onClearUnread: () => setComplianceUnread(0),
+    },
+    {
+      persona: 'tech' as const,
+      title: 'Tech',
+      messages: techMessages,
+      isLoading: techLoading,
+      highlighted: state.glitchActive,
+      unreadCount: techUnread,
+      error: techError,
+      showFreeTextInput: state.glitchActive,
+      onSend: (text: string) => void sendTech(text),
+      onMicPress: speechSupported ? startTechMic : undefined,
+      onClearUnread: () => setTechUnread(0),
+    },
+  ];
 
   const bottomBar = (
     <>
@@ -777,9 +773,10 @@ export function Dashboard() {
         topBarContent={topBar}
         leftSidebarContent={leftSidebar}
         centerContent={center}
-        rightSidebarContent={rightSidebar}
         bottomBarContent={bottomBar}
+        floatingComms
       />
+      <FloatingNpcComms npcs={npcCommsItems} />
       {scorecardOpen && scorecardData && (
         <ScorecardModal
           sessionPnL={scorecardData.sessionPnL}

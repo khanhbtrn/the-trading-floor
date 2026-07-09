@@ -3,6 +3,7 @@ export type NpcPersonaId = 'manager' | 'compliance' | 'tech';
 export interface NpcPersonaTheme {
   id: NpcPersonaId;
   displayName: string;
+  initial: string;
   accent: string;
   accentSoft: string;
   accentRgb: string;
@@ -18,6 +19,7 @@ export const NPC_THEMES: Record<NpcPersonaId, NpcPersonaTheme> = {
   manager: {
     id: 'manager',
     displayName: 'Vince Cole',
+    initial: 'V',
     accent: '#f97316',
     accentSoft: 'rgba(249, 115, 22, 0.14)',
     accentRgb: '249, 115, 22',
@@ -31,6 +33,7 @@ export const NPC_THEMES: Record<NpcPersonaId, NpcPersonaTheme> = {
   compliance: {
     id: 'compliance',
     displayName: 'Compliance',
+    initial: 'C',
     accent: '#38bdf8',
     accentSoft: 'rgba(56, 189, 248, 0.12)',
     accentRgb: '56, 189, 248',
@@ -44,6 +47,7 @@ export const NPC_THEMES: Record<NpcPersonaId, NpcPersonaTheme> = {
   tech: {
     id: 'tech',
     displayName: 'Tech Support',
+    initial: 'T',
     accent: '#a1a1aa',
     accentSoft: 'rgba(161, 161, 170, 0.1)',
     accentRgb: '161, 161, 170',
