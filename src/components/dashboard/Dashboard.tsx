@@ -30,6 +30,7 @@ import {
   MANAGER_NUDGE_LINES,
 } from '@/lib/sessionRules';
 import { requestNpc } from '@/lib/npcClient';
+import { buildTechDeskContext } from '@/lib/techDeskContext';
 import { usePlayerInit } from '@/hooks/usePlayerInit';
 import { useManagerOrderCountdown } from '@/hooks/useManagerOrderCountdown';
 import { computeRank, RANK_ORDER } from '@/lib/rank';
@@ -47,7 +48,7 @@ const MANAGER_GREETING =
 const COMPLIANCE_GREETING =
   'Compliance here. Your instruction breached the desk position limit. Justify this trade.';
 const TECH_GREETING =
-  'Desk support. Trading feed is frozen — describe what you see on your blotter.';
+  'Desk support. Feed looks stuck — tell me the LAST price and whether the chart is still moving.';
 
 export function Dashboard() {
   const { state, dispatch } = useGame();
@@ -347,7 +348,7 @@ export function Dashboard() {
         ...prev,
         {
           role: 'npc',
-          text: 'SYSTEM GLITCH — price feed frozen at tick 20. Run diagnostics.',
+          text: 'GLITCH ACTIVE — price feed stopped updating. Check the LAST price and chart on your desk.',
         },
       ]);
     }
@@ -540,7 +541,19 @@ export function Dashboard() {
       setTechError(null);
 
       try {
-        const result = await requestNpc('tech', nextMessages);
+        const deskContext = state.glitchActive
+          ? buildTechDeskContext({
+              lastPrice: price,
+              chartPointCount: tick + 1,
+              lastChartDate: rows[tick]?.date,
+              positionQty: state.position.qty,
+              cash: state.cash,
+              pnl: state.pnl,
+              feedFrozen: true,
+            })
+          : undefined;
+
+        const result = await requestNpc('tech', nextMessages, deskContext);
         if (!result.ok) {
           setTechError(result.error);
           return;
@@ -565,7 +578,7 @@ export function Dashboard() {
         setTechLoading(false);
       }
     },
-    [techMessages, dispatch, state.auditTrail, tick]
+    [techMessages, dispatch, state.auditTrail, state.glitchActive, tick, price, rows, state.position.qty, state.cash, state.pnl]
   );
 
   const { speechSupported, startListening: startManagerMic } = useSpeechInput((t) =>

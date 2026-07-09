@@ -7,13 +7,18 @@ export type NpcRequestResult =
 
 export async function requestNpc(
   persona: NpcPersona,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  deskContext?: string
 ): Promise<NpcRequestResult> {
   try {
     const res = await fetch('/api/npc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ persona, messages }),
+      body: JSON.stringify({
+        persona,
+        messages,
+        ...(deskContext ? { deskContext } : {}),
+      }),
     });
 
     if (!res.ok) {
