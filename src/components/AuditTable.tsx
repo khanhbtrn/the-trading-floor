@@ -1,4 +1,4 @@
-import type { AuditEntry } from '../types';
+import type { AuditEntry } from '@/lib/types';
 
 const TYPE_COLORS: Record<AuditEntry['type'], string> = {
   AI_INSTRUCTED: '#4caf50',

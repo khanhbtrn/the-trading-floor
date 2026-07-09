@@ -1,5 +1,7 @@
+'use client';
+
 import { useMemo, useState } from 'react';
-import type { NpcScriptNode, ScriptChoice } from '../types';
+import type { NpcScriptNode, ScriptChoice } from '@/lib/types';
 import { NpcChatView, type ChatMessage } from './npc-chat';
 
 interface ChatUIProps {

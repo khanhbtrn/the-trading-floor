@@ -1,5 +1,7 @@
-import { CONDUCT_DELTAS } from '../constants';
-import type { GameState, ScriptChoice } from '../types';
+'use client';
+
+import { CONDUCT_DELTAS } from '@/lib/constants';
+import type { GameState, ScriptChoice } from '@/lib/types';
 import { ChatUI } from './ChatUI';
 
 interface EscalationProps {

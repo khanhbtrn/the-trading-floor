@@ -1,6 +1,8 @@
+'use client';
+
 import { useEffect, useRef, useState } from 'react';
-import { TICK_INTERVAL_MS } from '../constants';
-import type { GameState } from '../types';
+import { TICK_INTERVAL_MS } from '@/lib/constants';
+import type { GameState } from '@/lib/types';
 import { ChatUI } from './ChatUI';
 import { TradingDeskView } from './trading-desk';
 

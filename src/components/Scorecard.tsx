@@ -1,5 +1,7 @@
-import { computeFinalScore } from '../utils/rank';
-import type { GameState } from '../types';
+'use client';
+
+import { computeFinalScore } from '@/lib/utils/rank';
+import type { GameState } from '@/lib/types';
 import { AuditTable } from './AuditTable';
 
 interface ScorecardProps {

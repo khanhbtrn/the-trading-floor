@@ -1,5 +1,7 @@
+'use client';
+
 import { useCallback } from 'react';
-import type { GameState, Instruction } from '../types';
+import type { GameState, Instruction } from '@/lib/types';
 import { ChatUI } from './ChatUI';
 
 interface BriefingProps {

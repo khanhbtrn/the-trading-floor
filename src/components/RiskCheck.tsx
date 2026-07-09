@@ -1,6 +1,8 @@
+'use client';
+
 import { useMemo } from 'react';
-import { POSITION_SIZE_LIMIT } from '../constants';
-import type { GameState } from '../types';
+import { POSITION_SIZE_LIMIT } from '@/lib/constants';
+import type { GameState } from '@/lib/types';
 
 interface RiskCheckProps {
   state: GameState;

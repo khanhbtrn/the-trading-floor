@@ -1,4 +1,4 @@
-import type { ScenarioConfig } from '../types';
+import type { ScenarioConfig } from '@/lib/types';
 
 interface ScenarioSelectProps {
   scenarios: ScenarioConfig[];

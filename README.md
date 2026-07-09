@@ -1,57 +1,43 @@
 # Trading Floor Game
 
-A narrative trading simulation built as a client-side React + TypeScript single-page app. Navigate scripted scenarios from morning briefing through risk checks, compliance escalation, live trading, and a final scorecard.
+Narrative trading simulation — Next.js 14 App Router + Tailwind.
 
 ## Stack
 
-- **React 19 + TypeScript + Vite**
-- **State:** `useReducer` with a single `GameState` source of truth
-- **Charts:** Recharts
-- **Persistence:** None (session-only, v1)
+- **Next.js 14** (App Router)
+- **Tailwind CSS**
+- **React Context** (`GameProvider`) + `useReducer` game state
+- **recharts**, **framer-motion**
+- Session-only persistence (v1)
 
-## Assumptions (Locked)
+## Routes
 
-1. NPC dialogue is **scripted/branching** — no live LLM calls
-2. Trading desk **auto-advances** ticks (2s default) with pause/play toggle
-3. Conduct score starts at **100**; compliance overrides cost **-10** (configurable in `src/constants.ts`)
-4. Audit trail includes **`DISCRETIONARY`** type for off-instruction trades
-5. One risk-rule violation is enough to **block** — no partial pass
-6. Scenario content lives in `/src/scenarios/`, not hardcoded in components
+| Route | Screen |
+|-------|--------|
+| `/select` | Scenario Select |
+| `/briefing` | Morning Briefing |
+| `/risk-check` | Risk Check |
+| `/escalation` | Compliance Escalation |
+| `/desk` | Trading Desk |
+| `/scorecard` | Session Scorecard |
 
-## Getting Started
+`/` redirects to `/select`.
+
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-```bash
-npm run build
-```
+Open [http://localhost:3000](http://localhost:3000).
 
-## Trading Desk UI
+## Game State
 
-The desk screen uses an imported HUD design (`src/components/trading-desk/TradingDeskView.tsx`), converted from the Claude design export saved at `design/TradingDeskView-standalone.html`.
+`GameProvider` (`src/context/GameProvider.tsx`) holds the spec `GameState` shape. Navigation actions dispatch reducer updates and push the matching route.
 
-NPC chat screens use `src/components/npc-chat/NpcChatView.tsx`, converted from `design/NpcChat-standalone.html`.
+## Design Imports
 
-
-```
-SCENARIO_SELECT → BRIEFING → RISK_CHECK → [ESCALATION if blocked] → DESK → SCORECARD
-```
-
-## Scenario Content
-
-Add new scenarios to `src/scenarios/` and register them in `src/scenarios/index.ts`.
-
-## Rank Formula
-
-```
-score = pnl + (conductScore × 50)
-Junior Trader: score < 0
-Associate:     0 ≤ score < 5000
-VP:            5000 ≤ score < 15000
-Desk Head:     score ≥ 15000
-```
-
-Constants in `src/constants.ts`.
+- `src/components/trading-desk/` — Trading Desk HUD
+- `src/components/npc-chat/` — NPC chat HUD
+- `design/` — original Claude design exports
