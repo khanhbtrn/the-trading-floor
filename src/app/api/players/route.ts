@@ -1,8 +1,25 @@
 import { NextResponse } from 'next/server';
 import { runIntroMigration } from '@/lib/runIntroMigration';
-import { getSupabaseServer } from '@/lib/supabase';
+import { getSupabaseServer, type PlayerRow } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
+
+async function findPlayerByName(
+  supabase: NonNullable<ReturnType<typeof getSupabaseServer>>,
+  playerName: string
+): Promise<PlayerRow | null> {
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .ilike('player_name', playerName);
+
+  if (error || !data?.length) {
+    return null;
+  }
+
+  const target = playerName.toLowerCase();
+  return data.find((row) => row.player_name.toLowerCase() === target) ?? null;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -55,6 +72,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 });
   }
 
+  const existing = await findPlayerByName(supabase, playerName);
+  if (existing) {
+    return NextResponse.json({ player: existing });
+  }
+
   const { data, error } = await supabase
     .from('players')
     .insert({ player_name: playerName })
@@ -62,6 +84,12 @@ export async function POST(request: Request) {
     .single();
 
   if (error || !data) {
+    if (error?.code === '23505') {
+      const raced = await findPlayerByName(supabase, playerName);
+      if (raced) {
+        return NextResponse.json({ player: raced });
+      }
+    }
     console.error('players insert failed:', error?.message);
     return NextResponse.json(
       { error: error?.message ?? 'Failed to create player' },

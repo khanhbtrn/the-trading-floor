@@ -22,7 +22,7 @@ export function PlayerLogin({
       <div className="w-full max-w-sm rounded border border-cyan-900/40 bg-zinc-900/80 p-6">
         <h1 className="font-pixel text-sm text-cyan-300">THE TRADING FLOOR</h1>
         <p className="mt-2 font-mono text-xs text-zinc-400">
-          Enter your name to start your career on the desk.
+          Enter your name to resume your career or start fresh on the desk.
         </p>
         <form
           className="mt-6 space-y-4"

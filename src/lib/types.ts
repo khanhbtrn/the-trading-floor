@@ -54,6 +54,7 @@ export interface GameState {
 
 export type GameAction =
   | { type: 'RESET' }
+  | { type: 'LOGOUT' }
   | {
       type: 'LOAD_PLAYER';
       playerId: string;

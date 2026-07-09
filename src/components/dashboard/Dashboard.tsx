@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard-shell';
 import { GameIntroSequence } from '@/components/game-intro';
-import { PlayerLogin, PlayerBootScreen } from '@/components/player-login';
+import { PlayerLogin } from '@/components/player-login';
 import { ScorecardModal } from '@/components/scorecard-modal';
 import { AnimatedPnL } from '@/components/animated-pnl';
 import { ManagerOrderCountdown } from '@/components/manager-order-countdown';
@@ -27,6 +27,7 @@ import {
   CONDUCT_ORDER_EXPIRED,
   CONDUCT_OVERRIDE_PENALTY,
   instructionFailsRisk,
+  MANAGER_NUDGE_LINES,
 } from '@/lib/sessionRules';
 import { requestNpc } from '@/lib/npcClient';
 import { usePlayerInit } from '@/hooks/usePlayerInit';
@@ -55,12 +56,13 @@ export function Dashboard() {
     playerReady,
     playerLoading,
     playerError,
-    handleCreatePlayer,
+    handleEnterName,
+    handleLogout,
     needsLogin,
-    isBooting,
     needsIntro,
     finishIntro,
     introCompleting,
+    sessionEpoch,
   } = usePlayerInit();
 
   const [selectedScenarioId, setSelectedScenarioId] = useState('2008');
@@ -135,25 +137,42 @@ export function Dashboard() {
     setLeaderboardLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (playerReady) {
-      void loadLeaderboard();
-    }
-  }, [playerReady, loadLeaderboard]);
-
-  useEffect(() => {
-    auditTrailRef.current = state.auditTrail;
-  }, [state.auditTrail]);
-
-  useEffect(() => {
-    if (playerReady && !state.currentScenarioId) {
-      const config = getScenarioById(selectedScenarioId);
-      if (config && !config.locked) {
-        startSession(selectedScenarioId);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerReady]);
+  const resetLocalSessionState = useCallback(() => {
+    setSelectedScenarioId('2008');
+    setTick(0);
+    setPrice(0);
+    setRows([]);
+    setCsvLoading(false);
+    setCsvError(null);
+    setMarketShockActive(false);
+    setTickIntervalMs(TICK_MS_NORMAL);
+    setChatInputActive(false);
+    setOrderCountdownActive(false);
+    setManagerMessages([{ role: 'npc', text: MANAGER_GREETING }]);
+    setComplianceMessages([{ role: 'npc', text: COMPLIANCE_GREETING }]);
+    setTechMessages([{ role: 'npc', text: TECH_GREETING }]);
+    setManagerLoading(false);
+    setComplianceLoading(false);
+    setTechLoading(false);
+    setManagerUnread(0);
+    setComplianceUnread(0);
+    setTechUnread(0);
+    setManagerUrgent(false);
+    setOverrideGranted(false);
+    setRiskStatus(null);
+    setManagerError(null);
+    setComplianceError(null);
+    setTechError(null);
+    setLeaderboard([]);
+    setLeaderboardLoading(false);
+    setLeaderboardError(null);
+    setScorecardOpen(false);
+    setScorecardData(null);
+    setEndingSession(false);
+    glitchTriggered.current = false;
+    shockTriggered.current = false;
+    prevRankRef.current = 'Junior Trader';
+  }, []);
 
   const resetNpcChats = () => {
     setManagerMessages([{ role: 'npc', text: MANAGER_GREETING }]);
@@ -192,6 +211,38 @@ export function Dashboard() {
     setTickIntervalMs(TICK_MS_NORMAL);
     shockTriggered.current = false;
   };
+
+  useEffect(() => {
+    if (playerReady) {
+      prevRankRef.current = state.rank;
+    }
+  }, [playerReady, state.rank]);
+
+  useEffect(() => {
+    if (playerReady) {
+      void loadLeaderboard();
+    }
+  }, [playerReady, loadLeaderboard]);
+
+  useEffect(() => {
+    auditTrailRef.current = state.auditTrail;
+  }, [state.auditTrail]);
+
+  useEffect(() => {
+    if (sessionEpoch > 0) {
+      resetLocalSessionState();
+    }
+  }, [sessionEpoch, resetLocalSessionState]);
+
+  useEffect(() => {
+    if (playerReady && !state.currentScenarioId) {
+      const config = getScenarioById(selectedScenarioId);
+      if (config && !config.locked) {
+        startSession(selectedScenarioId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerReady]);
 
   useEffect(() => {
     if (!state.currentScenarioId || !scenario) return;
@@ -338,11 +389,19 @@ export function Dashboard() {
     tick,
   ]);
 
+  const handleManagerNudge = useCallback((index: number) => {
+    const text = MANAGER_NUDGE_LINES[index] ?? MANAGER_NUDGE_LINES[0];
+    setManagerMessages((prev) => [...prev, { role: 'npc', text }]);
+    setManagerUnread((c) => c + 1);
+    setManagerUrgent(true);
+  }, []);
+
   const orderCountdown = useManagerOrderCountdown({
     active: orderCountdownActive && !!state.currentInstruction,
     paused: chatInputActive,
     instructionKey,
     onExpire: handleOrderExpire,
+    onNudge: handleManagerNudge,
   });
 
   const evaluateInstruction = useCallback(
@@ -693,14 +752,10 @@ export function Dashboard() {
     [rows, tick]
   );
 
-  if (isBooting) {
-    return <PlayerBootScreen />;
-  }
-
   if (needsLogin) {
     return (
       <PlayerLogin
-        onSubmit={handleCreatePlayer}
+        onSubmit={handleEnterName}
         loading={playerLoading}
         error={playerError}
       />
@@ -723,6 +778,13 @@ export function Dashboard() {
       <span className="text-zinc-300">
         Welcome back, <span className="text-cyan-300">{state.playerName}</span>
       </span>
+      <button
+        type="button"
+        className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+        onClick={handleLogout}
+      >
+        Log Out
+      </button>
       <span className="text-zinc-500">|</span>
       <span>
         Rank: <span className="text-cyan-300">{state.rank}</span>

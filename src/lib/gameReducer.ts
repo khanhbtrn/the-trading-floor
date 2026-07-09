@@ -39,6 +39,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         sessionsPlayed: state.sessionsPlayed,
       };
 
+    case 'LOGOUT':
+      return { ...initialGameState };
+
     case 'LOAD_PLAYER':
       return {
         ...state,

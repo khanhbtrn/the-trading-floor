@@ -1,29 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useGame } from '@/context/GameProvider';
 import {
-  clearStoredPlayerId,
   completeIntro,
-  createPlayer,
-  fetchPlayer,
-  getStoredPlayerId,
   playerIntroCompleted,
   playerRowToRank,
+  resumePlayerByName,
 } from '@/lib/playerService';
 
 export function usePlayerInit() {
-  const { dispatch } = useGame();
+  const { state, dispatch } = useGame();
   const [playerReady, setPlayerReady] = useState(false);
-  const [playerLoading, setPlayerLoading] = useState(true);
+  const [playerLoading, setPlayerLoading] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [introCompleted, setIntroCompleted] = useState(true);
   const [introCompleting, setIntroCompleting] = useState(false);
-  const hadStoredId = useRef(false);
-
-  useEffect(() => {
-    hadStoredId.current = !!getStoredPlayerId();
-  }, []);
+  const [sessionEpoch, setSessionEpoch] = useState(0);
 
   const loadPlayerRow = useCallback(
     (row: {
@@ -51,37 +44,11 @@ export function usePlayerInit() {
     [dispatch]
   );
 
-  const hydratePlayer = useCallback(async () => {
+  const handleEnterName = async (name: string) => {
     setPlayerLoading(true);
     setPlayerError(null);
 
-    const storedId = getStoredPlayerId();
-    if (!storedId) {
-      setPlayerLoading(false);
-      return;
-    }
-
-    const result = await fetchPlayer(storedId);
-    if (!result.ok) {
-      clearStoredPlayerId();
-      setPlayerError(result.error);
-      setPlayerLoading(false);
-      return;
-    }
-
-    loadPlayerRow(result.data);
-    setPlayerLoading(false);
-  }, [loadPlayerRow]);
-
-  useEffect(() => {
-    void hydratePlayer();
-  }, [hydratePlayer]);
-
-  const handleCreatePlayer = async (name: string) => {
-    setPlayerLoading(true);
-    setPlayerError(null);
-
-    const result = await createPlayer(name);
+    const result = await resumePlayerByName(name);
     if (!result.ok) {
       setPlayerError(result.error);
       setPlayerLoading(false);
@@ -93,7 +60,7 @@ export function usePlayerInit() {
   };
 
   const finishIntro = useCallback(async () => {
-    const playerId = getStoredPlayerId();
+    const playerId = state.playerId;
     if (!playerId) {
       setIntroCompleted(true);
       return;
@@ -106,20 +73,28 @@ export function usePlayerInit() {
     if (result.ok) {
       setIntroCompleted(playerIntroCompleted(result.data));
     } else {
-      // Allow dashboard access even if persistence fails
       setIntroCompleted(true);
     }
-  }, []);
+  }, [state.playerId]);
+
+  const handleLogout = useCallback(() => {
+    dispatch({ type: 'LOGOUT' });
+    setPlayerReady(false);
+    setIntroCompleted(true);
+    setPlayerError(null);
+    setSessionEpoch((epoch) => epoch + 1);
+  }, [dispatch]);
 
   return {
     playerReady,
     playerLoading,
     playerError,
-    handleCreatePlayer,
-    needsLogin: !playerReady && !playerLoading,
-    isBooting: playerLoading && hadStoredId.current && !playerReady,
+    handleEnterName,
+    handleLogout,
+    needsLogin: !playerReady,
     needsIntro: playerReady && !introCompleted,
     finishIntro,
     introCompleting,
+    sessionEpoch,
   };
 }
