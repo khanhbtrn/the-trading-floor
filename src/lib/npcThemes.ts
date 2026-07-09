@@ -18,8 +18,8 @@ export interface NpcPersonaTheme {
 export const NPC_THEMES: Record<NpcPersonaId, NpcPersonaTheme> = {
   manager: {
     id: 'manager',
-    displayName: 'Vince Cole',
-    initial: 'V',
+    displayName: 'Big Buck Bro',
+    initial: 'B',
     accent: '#f97316',
     accentSoft: 'rgba(249, 115, 22, 0.14)',
     accentRgb: '249, 115, 22',
