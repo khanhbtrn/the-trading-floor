@@ -5,6 +5,8 @@ import { DashboardShell } from '@/components/dashboard-shell';
 import { GameIntroSequence } from '@/components/game-intro';
 import { PlayerLogin, PlayerBootScreen } from '@/components/player-login';
 import { ScorecardModal } from '@/components/scorecard-modal';
+import { AnimatedPnL } from '@/components/animated-pnl';
+import { RankUpCelebration } from '@/components/rank-up';
 import { SidebarNpcPanel } from '@/components/sidebar-npc-panel';
 import type { ChatMessage } from '@/components/npc-chat';
 import type { PriceHistoryPoint } from '@/components/trading-desk';
@@ -18,7 +20,7 @@ import {
 } from '@/lib/gameReducer';
 import { requestNpc } from '@/lib/npcClient';
 import { usePlayerInit } from '@/hooks/usePlayerInit';
-import { computeRank } from '@/lib/rank';
+import { computeRank, RANK_ORDER } from '@/lib/rank';
 import { getScenarioById, scenarios } from '@/lib/scenarios';
 import { endSession, fetchLeaderboard } from '@/lib/sessionApi';
 import type { LeaderboardEntry, Rank } from '@/lib/types';
@@ -67,9 +69,10 @@ export function Dashboard() {
   const [managerLoading, setManagerLoading] = useState(false);
   const [complianceLoading, setComplianceLoading] = useState(false);
   const [techLoading, setTechLoading] = useState(false);
-  const [managerBadge, setManagerBadge] = useState(false);
-  const [complianceBadge, setComplianceBadge] = useState(false);
-  const [techBadge, setTechBadge] = useState(false);
+  const [managerUnread, setManagerUnread] = useState(1);
+  const [complianceUnread, setComplianceUnread] = useState(1);
+  const [techUnread, setTechUnread] = useState(1);
+  const [managerUrgent, setManagerUrgent] = useState(false);
   const [overrideGranted, setOverrideGranted] = useState(false);
   const [riskStatus, setRiskStatus] = useState<string | null>(null);
   const [managerError, setManagerError] = useState<string | null>(null);
@@ -90,6 +93,8 @@ export function Dashboard() {
     persistMessage: string | null;
   } | null>(null);
   const [endingSession, setEndingSession] = useState(false);
+  const [rankUpRank, setRankUpRank] = useState<Rank | null>(null);
+  const prevRankRef = useRef(state.rank);
 
   const scenario = state.currentScenarioId
     ? getScenarioById(state.currentScenarioId)
@@ -128,9 +133,10 @@ export function Dashboard() {
     setManagerMessages([{ role: 'npc', text: MANAGER_GREETING }]);
     setComplianceMessages([{ role: 'npc', text: COMPLIANCE_GREETING }]);
     setTechMessages([{ role: 'npc', text: TECH_GREETING }]);
-    setManagerBadge(false);
-    setComplianceBadge(false);
-    setTechBadge(false);
+    setManagerUnread(0);
+    setComplianceUnread(0);
+    setTechUnread(0);
+    setManagerUrgent(false);
     setOverrideGranted(false);
     setRiskStatus(null);
     setManagerError(null);
@@ -224,7 +230,7 @@ export function Dashboard() {
     ) {
       glitchTriggered.current = true;
       dispatch({ type: 'PATCH', patch: { glitchActive: true } });
-      setTechBadge(true);
+      setTechUnread((c) => c + 1);
       setTechMessages((prev) => [
         ...prev,
         {
@@ -241,7 +247,7 @@ export function Dashboard() {
       if (failsRisk) {
         dispatch({ type: 'PATCH', patch: { blocked: true } });
         setRiskStatus('BLOCKED — see Compliance');
-        setComplianceBadge(true);
+        setComplianceUnread((c) => c + 1);
       } else {
         dispatch({ type: 'PATCH', patch: { blocked: false } });
         setRiskStatus('PASS — execute on desk');
@@ -255,6 +261,8 @@ export function Dashboard() {
       const userMessage: ChatMessage = { role: 'user', text };
       const nextMessages = [...managerMessages, userMessage];
       setManagerMessages(nextMessages);
+      setManagerUnread(0);
+      setManagerUrgent(false);
       setManagerLoading(true);
       setManagerError(null);
 
@@ -266,13 +274,14 @@ export function Dashboard() {
         }
         const npc = result.data;
         setManagerMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
-        setManagerBadge(true);
+        setManagerUnread((c) => c + 1);
 
         if (npc.instruction) {
           dispatch({
             type: 'PATCH',
             patch: { currentInstruction: npc.instruction },
           });
+          setManagerUrgent(true);
           evaluateInstruction(npc.instruction);
         }
       } finally {
@@ -287,6 +296,7 @@ export function Dashboard() {
       const userMessage: ChatMessage = { role: 'user', text };
       const nextMessages = [...complianceMessages, userMessage];
       setComplianceMessages(nextMessages);
+      setComplianceUnread(0);
       setComplianceLoading(true);
       setComplianceError(null);
 
@@ -298,7 +308,7 @@ export function Dashboard() {
         }
         const npc = result.data;
         setComplianceMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
-        setComplianceBadge(true);
+        setComplianceUnread((c) => c + 1);
 
         if (!npc.blocked) {
           setOverrideGranted(true);
@@ -341,6 +351,7 @@ export function Dashboard() {
       const userMessage: ChatMessage = { role: 'user', text };
       const nextMessages = [...techMessages, userMessage];
       setTechMessages(nextMessages);
+      setTechUnread(0);
       setTechLoading(true);
       setTechError(null);
 
@@ -352,7 +363,7 @@ export function Dashboard() {
         }
         const npc = result.data;
         setTechMessages((prev) => [...prev, { role: 'npc', text: npc.reply }]);
-        setTechBadge(true);
+        setTechUnread((c) => c + 1);
 
         if (npc.resolvesGlitch) {
           dispatch({
@@ -512,6 +523,11 @@ export function Dashboard() {
       sessionsPlayed: newSessionsPlayed,
     });
 
+    if (RANK_ORDER[newRank] > RANK_ORDER[prevRankRef.current]) {
+      setRankUpRank(newRank);
+    }
+    prevRankRef.current = newRank;
+
     setScorecardData({
       ...snapshot,
       persistMessage: result.ok
@@ -573,9 +589,10 @@ export function Dashboard() {
       <span className="text-zinc-500">|</span>
       <span>
         Career P&amp;L:{' '}
-        <span className={state.careerPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-          ${state.careerPnL.toFixed(2)}
-        </span>
+        <AnimatedPnL
+          value={state.careerPnL}
+          className={state.careerPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}
+        />
       </span>
       {state.glitchActive && (
         <>
@@ -591,7 +608,8 @@ export function Dashboard() {
       <div>
         <p className="text-zinc-300">{state.rank}</p>
         <p className="text-zinc-500">
-          Career P&amp;L: ${state.careerPnL.toFixed(2)}
+          Career P&amp;L:{' '}
+          <AnimatedPnL value={state.careerPnL} className="text-zinc-400" />
         </p>
         <p className="text-zinc-500">Sessions: {state.sessionsPlayed}</p>
         <p className="text-zinc-500">Conduct: {state.conductScore}</p>
@@ -659,21 +677,25 @@ export function Dashboard() {
   );
 
   const rightSidebar = (
-    <>
+    <div className="space-y-3">
       <SidebarNpcPanel
+        persona="manager"
         title="Manager"
+        npcDisplayName="Vince Cole"
         messages={managerMessages}
         isLoading={managerLoading}
         disabled={managerGreyed}
-        badge={managerBadge}
+        unreadCount={managerUnread}
+        isUrgent={managerUrgent}
         statusLine={riskStatus ?? undefined}
         error={managerError}
         showFreeTextInput={!managerGreyed}
         onSend={(text) => void sendManager(text)}
         onMicPress={speechSupported ? startManagerMic : undefined}
+        onClearUnread={() => setManagerUnread(0)}
         footerExtra={
           state.currentInstruction ? (
-            <p className="px-2 pb-2 font-mono text-[9px] text-cyan-600">
+            <p className="px-2 pb-2 font-mono text-[9px] text-orange-400/80">
               {state.currentInstruction.action.toUpperCase()}{' '}
               {state.currentInstruction.sizePctOfCash}% —{' '}
               {state.currentInstruction.reason}
@@ -682,29 +704,33 @@ export function Dashboard() {
         }
       />
       <SidebarNpcPanel
+        persona="compliance"
         title="Compliance"
         messages={complianceMessages}
         isLoading={complianceLoading}
         disabled={!state.blocked}
         highlighted={state.blocked && !overrideGranted}
-        badge={complianceBadge}
+        unreadCount={complianceUnread}
         error={complianceError}
         showFreeTextInput={state.blocked && !overrideGranted}
         onSend={(text) => void sendCompliance(text)}
         onMicPress={speechSupported ? startComplianceMic : undefined}
+        onClearUnread={() => setComplianceUnread(0)}
       />
       <SidebarNpcPanel
+        persona="tech"
         title="Tech"
         messages={techMessages}
         isLoading={techLoading}
         highlighted={state.glitchActive}
-        badge={techBadge}
+        unreadCount={techUnread}
         error={techError}
         showFreeTextInput={state.glitchActive}
         onSend={(text) => void sendTech(text)}
         onMicPress={speechSupported ? startTechMic : undefined}
+        onClearUnread={() => setTechUnread(0)}
       />
-    </>
+    </div>
   );
 
   const bottomBar = (
@@ -768,6 +794,11 @@ export function Dashboard() {
           }}
         />
       )}
+      <RankUpCelebration
+        rank={rankUpRank ?? state.rank}
+        show={rankUpRank !== null}
+        onDone={() => setRankUpRank(null)}
+      />
     </>
   );
 }

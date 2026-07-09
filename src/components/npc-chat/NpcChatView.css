@@ -421,3 +421,99 @@
   color: #3f3f46;
   cursor: not-allowed;
 }
+
+/* Embedded sidebar chat — compact, persona-themed bubbles */
+.npc-embed {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.npc-embed .npc-log {
+  flex: 1;
+  max-height: min(180px, 28vh);
+  padding: 8px 4px;
+  gap: 10px;
+}
+
+.npc-embed .npc-footer {
+  padding: 8px 4px 4px;
+  border-top: 1px solid rgba(63, 63, 70, 0.4);
+}
+
+.npc-embed .npc-bubble.npc {
+  color: #f4f4f5;
+  background: var(--npc-bubble-bg);
+  border: 1px solid var(--npc-bubble-border);
+  box-shadow: 0 0 10px var(--npc-accent-soft);
+}
+
+.npc-embed .npc-bubble-tag.npc {
+  color: var(--npc-tag);
+}
+
+.npc-embed .npc-typing {
+  background: var(--npc-bubble-bg);
+  border: 1px solid var(--npc-bubble-border);
+}
+
+.npc-embed .npc-type-dot {
+  background: var(--npc-accent);
+}
+
+.npc-embed .npc-input-wrap.focused {
+  border-color: var(--npc-accent);
+  box-shadow: 0 0 12px var(--npc-accent-soft);
+}
+
+.npc-embed .npc-send-btn.enabled {
+  border-color: var(--npc-accent);
+  background: var(--npc-accent);
+  box-shadow: 0 0 12px var(--npc-accent-soft);
+}
+
+.npc-mic-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--npc-accent, rgba(103, 232, 249, 0.4));
+  background: var(--npc-accent-soft, rgba(34, 211, 238, 0.06));
+  color: var(--npc-accent, #67e8f9);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: npc-mic-pulse 2s infinite;
+}
+
+/* Persona accents on standalone terminal */
+.npc-root--manager .npc-panel {
+  border-color: rgba(249, 115, 22, 0.4);
+  box-shadow: 0 0 30px rgba(249, 115, 22, 0.08);
+}
+
+.npc-root--manager .npc-name,
+.npc-root--manager .npc-avatar-initial {
+  color: #fdba74;
+}
+
+.npc-root--compliance .npc-panel {
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.npc-root--tech .npc-panel {
+  border-color: rgba(161, 161, 170, 0.35);
+}
+
+.npc-root--manager .npc-bubble.npc,
+.npc-root--compliance .npc-bubble.npc,
+.npc-root--tech .npc-bubble.npc {
+  background: var(--npc-bubble-bg);
+  border-color: var(--npc-bubble-border);
+}
+
+.npc-root--manager .npc-bubble-tag.npc,
+.npc-root--compliance .npc-bubble-tag.npc,
+.npc-root--tech .npc-bubble-tag.npc {
+  color: var(--npc-tag);
+}

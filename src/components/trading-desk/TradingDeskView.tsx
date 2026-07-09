@@ -1,4 +1,8 @@
+'use client';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import './TradingDeskView.css';
 
 export interface PriceHistoryPoint {
@@ -40,6 +44,20 @@ function fmt(n: number): string {
   });
 }
 
+function AnimatedPnLDisplay({ pnl }: { pnl: number }) {
+  const display = useAnimatedNumber(pnl, 450);
+  const positive = display >= 0;
+  const sign = positive ? '+' : '-';
+  return (
+    <div
+      className={`tdv-mono tdv-pnl-value ${positive ? 'positive' : 'negative'}`}
+      key={Math.sign(pnl) !== Math.sign(display) ? 'flip' : 'same'}
+    >
+      {sign}${fmt(Math.abs(display))}
+    </div>
+  );
+}
+
 export function TradingDeskView({
   priceHistory,
   position,
@@ -52,18 +70,15 @@ export function TradingDeskView({
   onSell,
 }: TradingDeskViewProps) {
   const [size, setSize] = useState(1);
-  const [pnlPulseKey, setPnlPulseKey] = useState(0);
   const [priceKey, setPriceKey] = useState(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [lineDrawKey, setLineDrawKey] = useState(0);
 
   const lastPrice = priceHistory.length
     ? priceHistory[priceHistory.length - 1].price
     : null;
   const prevLastPriceRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    setPnlPulseKey((k) => k + 1);
-  }, [pnl]);
+  const prevHistoryLen = useRef(priceHistory.length);
 
   useEffect(() => {
     if (prevLastPriceRef.current !== lastPrice) {
@@ -71,6 +86,13 @@ export function TradingDeskView({
       prevLastPriceRef.current = lastPrice;
     }
   }, [lastPrice]);
+
+  useEffect(() => {
+    if (priceHistory.length !== prevHistoryLen.current) {
+      setLineDrawKey((k) => k + 1);
+      prevHistoryLen.current = priceHistory.length;
+    }
+  }, [priceHistory.length]);
 
   const chart = useMemo(() => {
     const n = priceHistory.length;
@@ -229,14 +251,14 @@ export function TradingDeskView({
                 {lastPrice !== null && (
                   <>
                     <polygon
-                      key={`a${chart.n}`}
+                      key={`a${lineDrawKey}`}
                       points={chart.areaPoints}
                       fill={lineColor}
                       fillOpacity={0.06}
                       className="tdv-chart-area"
                     />
                     <polyline
-                      key={`l${chart.n}`}
+                      key={`l${lineDrawKey}`}
                       points={chart.linePoints}
                       fill="none"
                       stroke={lineColor}
@@ -245,6 +267,7 @@ export function TradingDeskView({
                       strokeLinejoin="round"
                       strokeLinecap="round"
                       className="tdv-chart-line"
+                      pathLength={2600}
                       style={{ filter: `drop-shadow(0 0 4px ${lineGlow})` }}
                     />
                     <circle
@@ -315,12 +338,7 @@ export function TradingDeskView({
               <div className="tdv-corner" style={{ top: -1, left: -1, borderTop: '2px solid', borderLeft: '2px solid' }} />
               <div className="tdv-corner" style={{ bottom: -1, right: -1, borderBottom: '2px solid', borderRight: '2px solid' }} />
               <div className="tdv-pixel" style={{ fontSize: 10, color: '#67e8f9', marginBottom: 12 }}>P&amp;L</div>
-              <div
-                key={pnlPulseKey}
-                className={`tdv-mono tdv-pnl-value ${pnlPositive ? 'positive' : 'negative'}`}
-              >
-                {(pnlPositive ? '+' : '-') + '$' + fmt(Math.abs(pnl))}
-              </div>
+              <AnimatedPnLDisplay pnl={pnl} />
               <div className="tdv-pixel" style={{ fontSize: 8, color: '#52525b', marginTop: 8 }}>
                 {pnlPositive ? 'UNREALIZED GAIN' : 'UNREALIZED LOSS'}
               </div>
@@ -363,35 +381,44 @@ export function TradingDeskView({
 
               <div className="tdv-size-chips">
                 {chipVals.map((v) => (
-                  <button
+                  <motion.button
                     key={v}
                     type="button"
                     className={`tdv-chip ${size === v ? 'active' : ''}`}
                     disabled={disabled}
+                    whileTap={{ scale: 0.92 }}
                     onClick={() => setSize(v)}
                   >
                     x{v}
-                  </button>
+                  </motion.button>
                 ))}
               </div>
 
               <div className="tdv-trade-buttons">
-                <button
+                <motion.button
                   type="button"
                   className="tdv-btn-buy"
                   disabled={disabled || buyDisabled || size <= 0}
+                  whileTap={disabled || buyDisabled || size <= 0 ? undefined : { scale: 0.93 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 28 }}
                   onClick={() => onBuy?.(size)}
                 >
                   BUY
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   type="button"
                   className="tdv-btn-sell"
                   disabled={disabled || sellDisabled || size <= 0 || qty <= 0}
+                  whileTap={
+                    disabled || sellDisabled || size <= 0 || qty <= 0
+                      ? undefined
+                      : { scale: 0.93 }
+                  }
+                  transition={{ type: 'spring', stiffness: 500, damping: 28 }}
                   onClick={() => onSell?.(size)}
                 >
                   SELL
-                </button>
+                </motion.button>
               </div>
             </div>
           </div>

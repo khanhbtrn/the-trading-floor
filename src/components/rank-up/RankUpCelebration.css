@@ -1,0 +1,40 @@
+.rank-up-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+}
+
+.rank-up-card {
+  text-align: center;
+  padding: 28px 36px;
+  border: 1px solid rgba(103, 232, 249, 0.5);
+  background: radial-gradient(ellipse at center, #0c1a1f 0%, #050607 70%);
+  box-shadow:
+    0 0 60px rgba(34, 211, 238, 0.25),
+    0 0 120px rgba(249, 115, 22, 0.15);
+}
+
+.rank-up-label {
+  font-size: 10px;
+  color: #fbbf24;
+  letter-spacing: 0.15em;
+}
+
+.rank-up-rank {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #67e8f9;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 20px rgba(103, 232, 249, 0.5);
+}
+
+.rank-up-sub {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #71717a;
+}
