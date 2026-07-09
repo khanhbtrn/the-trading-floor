@@ -53,7 +53,7 @@ function FloatingNpcAvatar({
           '--npc-glow': theme.glow,
         } as React.CSSProperties
       }
-      disabled={npc.disabled && !isOpen}
+      disabled={false}
       aria-label={`${npc.title}${hasUnread ? `, ${unread} unread` : ''}${urgent ? ', urgent' : ''}`}
       aria-expanded={isOpen}
       onClick={onClick}
@@ -197,9 +197,7 @@ export function FloatingNpcComms({ npcs, onChatInputActiveChange }: FloatingNpcC
                     messages={openNpc.messages}
                     npcName={openNpc.npcDisplayName ?? openTheme.displayName}
                     isLoading={openNpc.isLoading}
-                    showFreeTextInput={
-                      openNpc.showFreeTextInput !== false && !openNpc.disabled
-                    }
+                    showFreeTextInput={openNpc.showFreeTextInput !== false}
                     onSend={openNpc.onSend}
                     onMicPress={openNpc.onMicPress}
                     onUserReply={openNpc.onUserReply}
