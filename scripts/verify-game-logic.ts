@@ -77,8 +77,13 @@ assert.ok(salvaged);
 assert.equal(salvaged!.reply, 'Override granted per policy.');
 
 const longTech = 'a'.repeat(400);
-const clamped = clampPersonaReply('tech', longTech);
-assert.equal(clamped.length, 320);
-assert.ok(clamped.endsWith('…'));
+const clampedTech = clampPersonaReply('tech', longTech);
+assert.equal(clampedTech.length, 320);
+assert.ok(clampedTech.endsWith('…'));
+
+const longCompliance = 'b'.repeat(400);
+const clampedCompliance = clampPersonaReply('compliance', longCompliance);
+assert.equal(clampedCompliance.length, 320);
+assert.ok(clampedCompliance.endsWith('…'));
 
 console.log('verify-game-logic: all checks passed');
