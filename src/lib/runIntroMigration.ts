@@ -4,19 +4,38 @@ export type IntroMigrationResult =
   | { ok: true; message: string }
   | { ok: false; error: string };
 
-/** Idempotent DDL for players.intro_completed — requires POSTGRES_URL or DATABASE_URL on Vercel. */
-export async function runIntroMigration(): Promise<IntroMigrationResult> {
-  const connectionString =
+function resolveDatabaseUrl(): string | undefined {
+  const direct =
     process.env.POSTGRES_URL_NON_POOLING ??
     process.env.POSTGRES_URL ??
     process.env.DATABASE_URL ??
     process.env.SUPABASE_DATABASE_URL;
+  if (direct?.trim()) return direct.trim();
+
+  const password =
+    process.env.SUPABASE_DB_PASSWORD?.trim() ??
+    process.env.DATABASE_PASSWORD?.trim();
+  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+
+  if (!password || !publicUrl) return undefined;
+
+  try {
+    const ref = new URL(publicUrl).hostname.split('.')[0];
+    return `postgresql://postgres:${encodeURIComponent(password)}@db.${ref}.supabase.co:5432/postgres`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Idempotent DDL for players.intro_completed — requires POSTGRES_URL or DATABASE_URL on Vercel. */
+export async function runIntroMigration(): Promise<IntroMigrationResult> {
+  const connectionString = resolveDatabaseUrl();
 
   if (!connectionString) {
     return {
       ok: false,
       error:
-        'No database connection string. Add POSTGRES_URL from Supabase → Project Settings → Database → Connection string (URI) to Vercel env vars.',
+        'No database connection string. Add POSTGRES_URL (Supabase → Database → Connection string → URI) or SUPABASE_DB_PASSWORD to Vercel, then redeploy.',
     };
   }
 
