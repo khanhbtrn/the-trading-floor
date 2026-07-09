@@ -1,4 +1,4 @@
-/** Game state shape — locked in build plan spec lock. */
+/** Game state shape — architecture pivot (single dashboard). */
 
 export type Rank = 'Junior Trader' | 'Associate' | 'VP' | 'Desk Head';
 
@@ -33,23 +33,25 @@ export interface AuditEntry {
 }
 
 export interface GameState {
-  scenarioId: string | null;
-  tick: number;
-  price: number;
+  playerId: string;
+  playerName: string;
+  rank: Rank;
+  careerPnL: number;
+  sessionPnL: number;
   position: Position;
   cash: number;
   pnl: number;
+  currentScenarioId: string | null;
   conductScore: number;
   auditTrail: AuditEntry[];
-  currentInstruction: TradeInstruction | null;
-  blocked: boolean;
   glitchActive: boolean;
-  rank: Rank | null;
 }
 
 export type GameAction =
   | { type: 'RESET' }
-  | { type: 'SET_SCENARIO'; scenarioId: string; startingCash: number }
+  | { type: 'INIT_PLAYER'; playerId: string; playerName: string }
+  | { type: 'START_SESSION'; scenarioId: string; startingCash: number }
+  | { type: 'END_SESSION'; sessionPnL: number; rank: Rank; careerPnL: number }
   | { type: 'PATCH'; patch: Partial<GameState> };
 
 export interface ScenarioConfig {

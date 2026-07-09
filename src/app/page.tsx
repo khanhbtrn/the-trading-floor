@@ -1,5 +1,7 @@
-import { redirect } from 'next/navigation';
+'use client';
+
+import { Dashboard } from '@/components/dashboard';
 
 export default function HomePage() {
-  redirect('/select');
+  return <Dashboard />;
 }
