@@ -1,0 +1,42 @@
+.market-shock-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid rgba(248, 113, 113, 0.7);
+  background: linear-gradient(
+    90deg,
+    rgba(127, 29, 29, 0.55) 0%,
+    rgba(69, 10, 10, 0.35) 100%
+  );
+  box-shadow: 0 0 24px rgba(248, 113, 113, 0.35);
+  animation: market-shock-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.market-shock-banner__icon {
+  font-size: 18px;
+  color: #fca5a5;
+}
+
+.market-shock-banner__text {
+  font-size: 11px;
+  color: #fecaca;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 12px rgba(248, 113, 113, 0.8);
+}
+
+.market-shock-banner__sub {
+  margin-left: auto;
+  font-size: 10px;
+  color: #fca5a5;
+}
+
+@keyframes market-shock-pulse {
+  from {
+    box-shadow: 0 0 16px rgba(248, 113, 113, 0.25);
+  }
+  to {
+    box-shadow: 0 0 28px rgba(248, 113, 113, 0.55);
+  }
+}

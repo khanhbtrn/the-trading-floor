@@ -32,6 +32,7 @@ export interface NpcChatViewProps {
   onMicPress?: () => void;
   showFreeTextInput?: boolean;
   onUserReply?: () => void;
+  onInputActiveChange?: (active: boolean) => void;
 }
 
 function displayNpcName(speaker: string): string {
@@ -53,6 +54,7 @@ export function NpcChatView({
   onMicPress,
   showFreeTextInput = false,
   onUserReply,
+  onInputActiveChange,
 }: NpcChatViewProps) {
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
@@ -198,8 +200,14 @@ export function NpcChatView({
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
+              onFocus={() => {
+                setFocused(true);
+                onInputActiveChange?.(true);
+              }}
+              onBlur={() => {
+                setFocused(false);
+                onInputActiveChange?.(false);
+              }}
               placeholder="Transmit message…"
             />
           </div>

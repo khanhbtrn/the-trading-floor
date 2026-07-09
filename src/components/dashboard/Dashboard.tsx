@@ -6,7 +6,8 @@ import { GameIntroSequence } from '@/components/game-intro';
 import { PlayerLogin, PlayerBootScreen } from '@/components/player-login';
 import { ScorecardModal } from '@/components/scorecard-modal';
 import { AnimatedPnL } from '@/components/animated-pnl';
-import { RankUpCelebration } from '@/components/rank-up';
+import { ManagerOrderCountdown } from '@/components/manager-order-countdown';
+import { MarketShockBanner } from '@/components/market-shock-banner';
 import { FloatingNpcComms } from '@/components/floating-npc-comms';
 import type { ChatMessage } from '@/components/npc-chat';
 import type { PriceHistoryPoint } from '@/components/trading-desk';
@@ -16,23 +17,30 @@ import { parseScenarioCsv } from '@/lib/csv';
 import {
   DEFAULT_STARTING_CASH,
   GLITCH_TICK,
+  SHOCK_DROP_RATIO,
+  SHOCK_TICK,
 } from '@/lib/gameReducer';
 import {
   clampConduct,
   compliantResizeBonus,
   CONDUCT_GLITCH_PANIC_PENALTY,
+  CONDUCT_ORDER_EXPIRED,
   CONDUCT_OVERRIDE_PENALTY,
   instructionFailsRisk,
 } from '@/lib/sessionRules';
 import { requestNpc } from '@/lib/npcClient';
 import { usePlayerInit } from '@/hooks/usePlayerInit';
+import { useManagerOrderCountdown } from '@/hooks/useManagerOrderCountdown';
 import { computeRank, RANK_ORDER } from '@/lib/rank';
 import { getScenarioById, scenarios } from '@/lib/scenarios';
 import { endSession, fetchLeaderboard } from '@/lib/sessionApi';
 import type { LeaderboardEntry, Rank } from '@/lib/types';
 import { useSpeechInput } from '@/lib/useSpeechInput';
 
-const TICK_MS = 1000;
+const TICK_MS_NORMAL = 1000;
+const TICK_MS_SHOCK = 200;
+const SHOCK_DURATION_MS = 5000;
+const ORDER_EXPIRED_LINE = 'too slow. gone. wake up.';
 const MANAGER_GREETING =
   'Morning. The tape is unstable. Give me your read before we size this ticket.';
 const COMPLIANCE_GREETING =
@@ -62,6 +70,12 @@ export function Dashboard() {
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
   const glitchTriggered = useRef(false);
+  const shockTriggered = useRef(false);
+  const auditTrailRef = useRef(state.auditTrail);
+  const [marketShockActive, setMarketShockActive] = useState(false);
+  const [tickIntervalMs, setTickIntervalMs] = useState(TICK_MS_NORMAL);
+  const [chatInputActive, setChatInputActive] = useState(false);
+  const [orderCountdownActive, setOrderCountdownActive] = useState(false);
 
   const [managerMessages, setManagerMessages] = useState<ChatMessage[]>([
     { role: 'npc', text: MANAGER_GREETING },
@@ -98,9 +112,10 @@ export function Dashboard() {
     scenarioName: string;
     auditTrail: typeof state.auditTrail;
     persistMessage: string | null;
+    previousRank: Rank;
+    rankIncreased: boolean;
   } | null>(null);
   const [endingSession, setEndingSession] = useState(false);
-  const [rankUpRank, setRankUpRank] = useState<Rank | null>(null);
   const prevRankRef = useRef(state.rank);
 
   const scenario = state.currentScenarioId
@@ -127,6 +142,10 @@ export function Dashboard() {
   }, [playerReady, loadLeaderboard]);
 
   useEffect(() => {
+    auditTrailRef.current = state.auditTrail;
+  }, [state.auditTrail]);
+
+  useEffect(() => {
     if (playerReady && !state.currentScenarioId) {
       const config = getScenarioById(selectedScenarioId);
       if (config && !config.locked) {
@@ -150,6 +169,10 @@ export function Dashboard() {
     setComplianceError(null);
     setTechError(null);
     glitchTriggered.current = false;
+    shockTriggered.current = false;
+    setMarketShockActive(false);
+    setTickIntervalMs(TICK_MS_NORMAL);
+    setOrderCountdownActive(false);
   };
 
   const startSession = (scenarioId: string) => {
@@ -165,6 +188,9 @@ export function Dashboard() {
     setPrice(0);
     setRows([]);
     resetNpcChats();
+    setMarketShockActive(false);
+    setTickIntervalMs(TICK_MS_NORMAL);
+    shockTriggered.current = false;
   };
 
   useEffect(() => {
@@ -206,7 +232,34 @@ export function Dashboard() {
 
     const timer = setTimeout(() => {
       const nextTick = Math.min(tick + 1, rows.length - 1);
-      const nextPrice = rows[nextTick].close;
+      let nextPrice = rows[nextTick].close;
+
+      if (nextTick === SHOCK_TICK && !shockTriggered.current) {
+        shockTriggered.current = true;
+        const prevClose = rows[Math.max(0, nextTick - 1)].close;
+        nextPrice = prevClose * SHOCK_DROP_RATIO;
+        setMarketShockActive(true);
+        setTickIntervalMs(TICK_MS_SHOCK);
+        window.setTimeout(() => {
+          setMarketShockActive(false);
+          setTickIntervalMs(TICK_MS_NORMAL);
+        }, SHOCK_DURATION_MS);
+        dispatch({
+          type: 'PATCH',
+          patch: {
+            auditTrail: [
+              ...auditTrailRef.current,
+              {
+                source: 'market-shock',
+                tick: nextTick,
+                price: nextPrice,
+                note: `Gap down ${((1 - SHOCK_DROP_RATIO) * 100).toFixed(1)}%`,
+              },
+            ],
+          },
+        });
+      }
+
       const nextPnl =
         state.cash + state.position.qty * nextPrice - DEFAULT_STARTING_CASH;
       setTick(nextTick);
@@ -215,7 +268,7 @@ export function Dashboard() {
         type: 'PATCH',
         patch: { pnl: nextPnl, sessionPnL: nextPnl },
       });
-    }, TICK_MS);
+    }, tickIntervalMs);
 
     return () => clearTimeout(timer);
   }, [
@@ -226,6 +279,7 @@ export function Dashboard() {
     state.position.qty,
     state.currentScenarioId,
     dispatch,
+    tickIntervalMs,
   ]);
 
   useEffect(() => {
@@ -247,6 +301,49 @@ export function Dashboard() {
       ]);
     }
   }, [tick, state.currentScenarioId, rows.length, dispatch]);
+
+  const instructionKey = state.currentInstruction
+    ? `${state.currentInstruction.action}:${state.currentInstruction.sizePctOfCash}:${state.currentInstruction.reason}`
+    : null;
+
+  const handleOrderExpire = useCallback(() => {
+    if (!state.currentInstruction) return;
+
+    dispatch({
+      type: 'PATCH',
+      patch: {
+        currentInstruction: null,
+        blocked: false,
+        conductScore: clampConduct(state.conductScore + CONDUCT_ORDER_EXPIRED),
+        auditTrail: [
+          ...state.auditTrail,
+          { source: 'order-expired', tick, note: 'Manager order timer expired' },
+        ],
+      },
+    });
+    setManagerUrgent(false);
+    setOverrideGranted(false);
+    setRiskStatus('Order expired — desk idle');
+    setOrderCountdownActive(false);
+    setManagerMessages((prev) => [
+      ...prev,
+      { role: 'npc', text: ORDER_EXPIRED_LINE },
+    ]);
+    setManagerUnread((c) => c + 1);
+  }, [
+    state.currentInstruction,
+    state.conductScore,
+    state.auditTrail,
+    dispatch,
+    tick,
+  ]);
+
+  const orderCountdown = useManagerOrderCountdown({
+    active: orderCountdownActive && !!state.currentInstruction,
+    paused: chatInputActive,
+    instructionKey,
+    onExpire: handleOrderExpire,
+  });
 
   const evaluateInstruction = useCallback(
     (instruction: NonNullable<typeof state.currentInstruction>) => {
@@ -298,6 +395,7 @@ export function Dashboard() {
             patch: { currentInstruction: npc.instruction },
           });
           setManagerUrgent(true);
+          setOrderCountdownActive(true);
           evaluateInstruction(npc.instruction);
         }
       } finally {
@@ -309,6 +407,11 @@ export function Dashboard() {
 
   const sendCompliance = useCallback(
     async (text: string) => {
+      if (state.blocked) {
+        setOrderCountdownActive(false);
+        orderCountdown.clear();
+      }
+
       const userMessage: ChatMessage = { role: 'user', text };
       const nextMessages = [...complianceMessages, userMessage];
       setComplianceMessages(nextMessages);
@@ -357,13 +460,15 @@ export function Dashboard() {
               ],
             },
           });
+          setOrderCountdownActive(false);
+          orderCountdown.clear();
           setRiskStatus('Rejected — ask Manager for a compliant size');
         }
       } finally {
         setComplianceLoading(false);
       }
     },
-    [complianceMessages, dispatch, state.auditTrail, state.conductScore, tick]
+    [complianceMessages, dispatch, state.auditTrail, state.conductScore, state.blocked, tick, orderCountdown]
   );
 
   const sendTech = useCallback(
@@ -468,6 +573,8 @@ export function Dashboard() {
         ],
       },
     });
+    setOrderCountdownActive(false);
+    orderCountdown.clear();
   };
 
   const executeSell = (size: number) => {
@@ -516,6 +623,8 @@ export function Dashboard() {
         ],
       },
     });
+    setOrderCountdownActive(false);
+    orderCountdown.clear();
   };
 
   const handleEndSession = async () => {
@@ -523,7 +632,9 @@ export function Dashboard() {
     setEndingSession(true);
 
     const newCareerPnL = state.careerPnL + state.pnl;
+    const previousRank = prevRankRef.current;
     const newRank = computeRank(newCareerPnL, state.conductScore);
+    const rankIncreased = RANK_ORDER[newRank] > RANK_ORDER[previousRank];
     const newSessionsPlayed = state.sessionsPlayed + 1;
     const snapshot = {
       sessionPnL: state.pnl,
@@ -550,9 +661,6 @@ export function Dashboard() {
       sessionsPlayed: newSessionsPlayed,
     });
 
-    if (RANK_ORDER[newRank] > RANK_ORDER[prevRankRef.current]) {
-      setRankUpRank(newRank);
-    }
     prevRankRef.current = newRank;
 
     const scenarioName =
@@ -561,6 +669,8 @@ export function Dashboard() {
     setScorecardData({
       ...snapshot,
       scenarioName,
+      previousRank,
+      rankIncreased,
       persistMessage: result.ok
         ? 'Career progress saved to Supabase.'
         : `Session ended (save failed: ${result.reason})`,
@@ -685,16 +795,27 @@ export function Dashboard() {
         <p className="mb-4 font-mono text-sm text-red-400">{csvError}</p>
       )}
       {state.currentScenarioId && !csvLoading && !csvError && rows.length > 0 && (
-        <TradingDeskView
-          priceHistory={priceHistory}
-          position={state.position}
-          cash={state.cash}
-          pnl={state.pnl}
-          disabled={state.glitchActive || !state.currentInstruction}
-          buyDisabled={!buyAllowed}
-          sellDisabled={!sellAllowed}
-          onBuy={executeBuy}
-          onSell={executeSell}
+        <>
+          <MarketShockBanner active={marketShockActive} />
+          <TradingDeskView
+            priceHistory={priceHistory}
+            position={state.position}
+            cash={state.cash}
+            pnl={state.pnl}
+            disabled={!state.currentInstruction}
+            glitchLocked={state.glitchActive}
+            buyDisabled={!buyAllowed}
+            sellDisabled={!sellAllowed}
+            onBuy={executeBuy}
+            onSell={executeSell}
+          />
+        </>
+      )}
+      {state.currentInstruction && (
+        <ManagerOrderCountdown
+          visible={orderCountdownActive}
+          remainingMs={orderCountdown.remainingMs}
+          totalMs={orderCountdown.totalMs}
         />
       )}
       {state.currentInstruction && (
@@ -724,11 +845,18 @@ export function Dashboard() {
       onMicPress: speechSupported ? startManagerMic : undefined,
       onClearUnread: () => setManagerUnread(0),
       footerExtra: state.currentInstruction ? (
-        <p className="font-mono text-[9px] text-orange-400/80">
-          {state.currentInstruction.action.toUpperCase()}{' '}
-          {state.currentInstruction.sizePctOfCash}% —{' '}
-          {state.currentInstruction.reason}
-        </p>
+        <>
+          <ManagerOrderCountdown
+            visible={orderCountdownActive}
+            remainingMs={orderCountdown.remainingMs}
+            totalMs={orderCountdown.totalMs}
+          />
+          <p className="font-mono text-[9px] text-orange-400/80">
+            {state.currentInstruction.action.toUpperCase()}{' '}
+            {state.currentInstruction.sizePctOfCash}% —{' '}
+            {state.currentInstruction.reason}
+          </p>
+        </>
       ) : undefined,
     },
     {
@@ -807,13 +935,18 @@ export function Dashboard() {
         bottomBarContent={bottomBar}
         floatingComms
       />
-      <FloatingNpcComms npcs={npcCommsItems} />
+      <FloatingNpcComms
+        npcs={npcCommsItems}
+        onChatInputActiveChange={setChatInputActive}
+      />
       {scorecardOpen && scorecardData && (
         <ScorecardModal
           sessionPnL={scorecardData.sessionPnL}
           careerPnL={scorecardData.careerPnL}
           conductScore={scorecardData.conductScore}
           rank={scorecardData.rank}
+          previousRank={scorecardData.previousRank}
+          rankIncreased={scorecardData.rankIncreased}
           scenarioName={scorecardData.scenarioName}
           auditTrail={scorecardData.auditTrail}
           persistMessage={scorecardData.persistMessage}
@@ -823,11 +956,6 @@ export function Dashboard() {
           }}
         />
       )}
-      <RankUpCelebration
-        rank={rankUpRank ?? state.rank}
-        show={rankUpRank !== null}
-        onDone={() => setRankUpRank(null)}
-      />
     </>
   );
 }

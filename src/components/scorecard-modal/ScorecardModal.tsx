@@ -2,12 +2,15 @@
 
 import { motion } from 'framer-motion';
 import type { AuditEntry, Rank } from '@/lib/types';
+import './ScorecardModal.css';
 
 interface ScorecardModalProps {
   sessionPnL: number;
   careerPnL: number;
   conductScore: number;
   rank: Rank;
+  previousRank?: Rank;
+  rankIncreased?: boolean;
   scenarioName?: string;
   auditTrail: AuditEntry[];
   persistMessage?: string | null;
@@ -19,6 +22,8 @@ export function ScorecardModal({
   careerPnL,
   conductScore,
   rank,
+  previousRank,
+  rankIncreased = false,
   scenarioName = 'the session',
   auditTrail,
   persistMessage,
@@ -27,7 +32,7 @@ export function ScorecardModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
       <motion.div
-        className="w-full max-w-md rounded border border-cyan-900/50 bg-zinc-950 p-6"
+        className="scorecard-modal w-full max-w-md rounded border border-cyan-900/50 bg-zinc-950 p-6"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
@@ -59,6 +64,21 @@ export function ScorecardModal({
             <p className="font-pixel text-[10px] text-cyan-300">{rank}</p>
           </div>
         </div>
+
+        {rankIncreased && (
+          <div className="scorecard-modal__rank-up mt-4 rounded border border-amber-500/40 bg-gradient-to-b from-amber-950/40 to-zinc-950 p-4 text-center">
+            <p className="scorecard-modal__rank-up-label font-pixel">RANK UP</p>
+            <p className="scorecard-modal__rank-up-rank font-pixel">{rank}</p>
+            {previousRank && (
+              <p className="mt-1 font-mono text-[10px] text-zinc-500">
+                Promoted from {previousRank}
+              </p>
+            )}
+            <p className="mt-2 font-mono text-[10px] text-zinc-500">
+              Career milestone reached
+            </p>
+          </div>
+        )}
 
         {persistMessage && (
           <p className="mt-3 font-mono text-xs text-zinc-500">{persistMessage}</p>

@@ -21,6 +21,7 @@ export interface TradingDeskViewProps {
   cash: number;
   pnl: number;
   disabled?: boolean;
+  glitchLocked?: boolean;
   buyDisabled?: boolean;
   sellDisabled?: boolean;
   onBuy?: (size: number) => void;
@@ -30,7 +31,7 @@ export interface TradingDeskViewProps {
 const VBW = 1000;
 const VBH = 340;
 const PAD_L = 64;
-const PAD_R = 18;
+const PAD_R = 44;
 const PAD_T = 18;
 const PAD_B = 30;
 const INNER_W = VBW - PAD_L - PAD_R;
@@ -64,6 +65,7 @@ export function TradingDeskView({
   cash,
   pnl,
   disabled = false,
+  glitchLocked = false,
   buyDisabled = false,
   sellDisabled = false,
   onBuy,
@@ -165,6 +167,7 @@ export function TradingDeskView({
     setHoverIndex(idx);
   };
 
+  const controlsLocked = disabled || glitchLocked;
   const chipVals = [1, 5, 10, 25];
 
   return (
@@ -216,7 +219,7 @@ export function TradingDeskView({
                   <g key={i}>
                     <line
                       x1={64}
-                      x2={982}
+                      x2={VBW - PAD_R}
                       y1={g.y}
                       y2={g.y}
                       stroke="#164e63"
@@ -296,7 +299,7 @@ export function TradingDeskView({
                     />
                     <line
                       x1={64}
-                      x2={982}
+                      x2={VBW - PAD_R}
                       y1={hoverPt.y.toFixed(1)}
                       y2={hoverPt.y.toFixed(1)}
                       stroke="#22d3ee"
@@ -361,7 +364,7 @@ export function TradingDeskView({
               </div>
             </div>
 
-            <div className="tdv-panel tdv-order-panel">
+            <div className={`tdv-panel tdv-order-panel ${glitchLocked ? 'tdv-order-panel--glitch' : ''}`}>
               <div className="tdv-corner" style={{ top: -1, left: -1, borderTop: '2px solid', borderLeft: '2px solid' }} />
               <div className="tdv-corner" style={{ top: -1, right: -1, borderTop: '2px solid', borderRight: '2px solid' }} />
               <div className="tdv-pixel" style={{ fontSize: 10, color: '#67e8f9' }}>ORDER TICKET</div>
@@ -374,7 +377,7 @@ export function TradingDeskView({
                   min={0}
                   step={1}
                   value={size}
-                  disabled={disabled}
+                  disabled={controlsLocked}
                   onChange={(e) => setSize(Math.max(0, Number(e.target.value) || 0))}
                 />
               </div>
@@ -385,7 +388,7 @@ export function TradingDeskView({
                     key={v}
                     type="button"
                     className={`tdv-chip ${size === v ? 'active' : ''}`}
-                    disabled={disabled}
+                    disabled={controlsLocked}
                     whileTap={{ scale: 0.92 }}
                     onClick={() => setSize(v)}
                   >
@@ -398,8 +401,8 @@ export function TradingDeskView({
                 <motion.button
                   type="button"
                   className="tdv-btn-buy"
-                  disabled={disabled || buyDisabled || size <= 0}
-                  whileTap={disabled || buyDisabled || size <= 0 ? undefined : { scale: 0.93 }}
+                  disabled={controlsLocked || buyDisabled || size <= 0}
+                  whileTap={controlsLocked || buyDisabled || size <= 0 ? undefined : { scale: 0.93 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 28 }}
                   onClick={() => onBuy?.(size)}
                 >
@@ -408,9 +411,9 @@ export function TradingDeskView({
                 <motion.button
                   type="button"
                   className="tdv-btn-sell"
-                  disabled={disabled || sellDisabled || size <= 0 || qty <= 0}
+                  disabled={controlsLocked || sellDisabled || size <= 0 || qty <= 0}
                   whileTap={
-                    disabled || sellDisabled || size <= 0 || qty <= 0
+                    controlsLocked || sellDisabled || size <= 0 || qty <= 0
                       ? undefined
                       : { scale: 0.93 }
                   }

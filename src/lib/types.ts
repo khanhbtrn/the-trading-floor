@@ -20,7 +20,9 @@ export type AuditSource =
   | 'player-override'
   | 'blocked'
   | 'glitch'
-  | 'glitch-panic';
+  | 'glitch-panic'
+  | 'market-shock'
+  | 'order-expired';
 
 export interface AuditEntry {
   source: AuditSource;

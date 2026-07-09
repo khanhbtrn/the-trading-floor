@@ -1,0 +1,13 @@
+.scorecard-modal__rank-up-label {
+  font-size: 10px;
+  color: #fbbf24;
+  letter-spacing: 0.15em;
+}
+
+.scorecard-modal__rank-up-rank {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #67e8f9;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 16px rgba(103, 232, 249, 0.45);
+}
