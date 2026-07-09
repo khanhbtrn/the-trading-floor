@@ -3,7 +3,7 @@ import './globals.css';
 import { GameProvider } from '@/context/GameProvider';
 
 export const metadata: Metadata = {
-  title: 'The Trading Floor — Career Edition',
+  title: 'The Trading Floor',
   description: 'Equity trading floor simulation with career progression',
 };
 
