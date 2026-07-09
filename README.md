@@ -29,7 +29,10 @@ npm run dev
 npm run build
 ```
 
-## Game Flow
+## Trading Desk UI
+
+The desk screen uses an imported HUD design (`src/components/trading-desk/TradingDeskView.tsx`), converted from the Claude design export saved at `design/TradingDeskView-standalone.html`.
+
 
 ```
 SCENARIO_SELECT → BRIEFING → RISK_CHECK → [ESCALATION if blocked] → DESK → SCORECARD
