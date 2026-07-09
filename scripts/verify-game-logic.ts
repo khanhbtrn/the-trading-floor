@@ -6,7 +6,7 @@ import {
   CONDUCT_OVERRIDE_PENALTY,
   instructionFailsRisk,
 } from '../src/lib/sessionRules';
-import { normalizeNpcResponse, salvageNpcResponse } from '../src/lib/npc';
+import { normalizeNpcResponse, salvageNpcResponse, clampPersonaReply } from '../src/lib/npc';
 import { computeRank } from '../src/lib/rank';
 import { MAX_POSITION_PCT_OF_CASH } from '../src/lib/gameReducer';
 
@@ -67,5 +67,10 @@ const salvaged = salvageNpcResponse(
 );
 assert.ok(salvaged);
 assert.equal(salvaged!.reply, 'Override granted per policy.');
+
+const longTech = 'a'.repeat(400);
+const clamped = clampPersonaReply('tech', longTech);
+assert.equal(clamped.length, 320);
+assert.ok(clamped.endsWith('…'));
 
 console.log('verify-game-logic: all checks passed');

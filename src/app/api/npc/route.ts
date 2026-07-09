@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  clampPersonaReply,
   normalizeNpcResponse,
   personaSystemPrompts,
   salvageNpcResponse,
@@ -13,6 +14,12 @@ export const dynamic = 'force-dynamic';
 
 const MODEL = 'claude-sonnet-4-6';
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+
+const PERSONA_MAX_TOKENS: Record<NpcPersona, number> = {
+  manager: 500,
+  compliance: 500,
+  tech: 180,
+};
 
 interface NpcRequestBody {
   persona: NpcPersona;
@@ -33,7 +40,7 @@ async function callAnthropic(
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 500,
+      max_tokens: PERSONA_MAX_TOKENS[persona],
       system:
         `${personaSystemPrompts[persona]}\n` +
         'Return ONLY JSON with shape: ' +
@@ -57,6 +64,16 @@ async function callAnthropic(
   const text =
     data.content?.find((c) => c.type === 'text')?.text?.trim() ?? '';
   return text;
+}
+
+function finalizeResponse(
+  persona: NpcPersona,
+  response: NpcResponse
+): NpcResponse {
+  return {
+    ...response,
+    reply: clampPersonaReply(persona, response.reply),
+  };
 }
 
 function fallbackResponse(rawText: string): NpcResponse {
@@ -125,16 +142,18 @@ export async function POST(req: Request) {
     const firstRaw = await callAnthropic(apiKey, body.persona, safeMessages);
     const firstParsed = parseNpcResponse(firstRaw);
     if (firstParsed) {
-      return NextResponse.json(firstParsed);
+      return NextResponse.json(finalizeResponse(body.persona, firstParsed));
     }
 
     const secondRaw = await callAnthropic(apiKey, body.persona, safeMessages);
     const secondParsed = parseNpcResponse(secondRaw);
     if (secondParsed) {
-      return NextResponse.json(secondParsed);
+      return NextResponse.json(finalizeResponse(body.persona, secondParsed));
     }
 
-    return NextResponse.json(fallbackResponse(secondRaw));
+    return NextResponse.json(
+      finalizeResponse(body.persona, fallbackResponse(secondRaw))
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
