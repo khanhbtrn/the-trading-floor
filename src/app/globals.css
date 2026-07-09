@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Press+Start+2P&display=swap');
+
+@layer base {
+  body {
+    @apply bg-surface text-[#e6edf3] antialiased;
+  }
+}
+
+@layer components {
+  .screen {
+    @apply mx-auto max-w-5xl px-6 py-8;
+  }
+
+  .screen-header {
+    @apply mb-8;
+  }
+
+  .screen-header h1 {
+    @apply text-3xl font-semibold tracking-tight;
+  }
+
+  .subtitle {
+    @apply mt-1 text-[#8b949e];
+  }
+
+  .btn {
+    @apply rounded-md border border-[#30363d] px-5 py-2.5 text-sm transition-colors;
+  }
+
+  .btn-primary {
+    @apply border-accent bg-accent font-semibold text-[#0d1117] hover:bg-[#79d4ff];
+  }
+
+  .btn-secondary {
+    @apply bg-surface-card text-[#e6edf3] hover:bg-surface-panel;
+  }
+
+  .scenario-grid {
+    @apply grid gap-4 sm:grid-cols-2;
+  }
+
+  .scenario-card {
+    @apply rounded-lg border border-[#30363d] bg-surface-panel p-6 text-left transition hover:-translate-y-0.5 hover:border-accent;
+  }
+
+  .scenario-card h2 {
+    @apply text-lg font-medium;
+  }
+
+  .scenario-date {
+    @apply text-sm text-accent;
+  }
+
+  .scenario-flavor {
+    @apply mt-3 text-sm text-[#8b949e];
+  }
+
+  .risk-result {
+    @apply mb-6 rounded-lg p-8 text-center;
+  }
+
+  .risk-result.pass {
+    @apply border-2 border-[#3fb950] bg-[#3fb950]/15;
+  }
+
+  .risk-result.blocked {
+    @apply border-2 border-[#f85149] bg-[#f85149]/15;
+  }
+
+  .risk-status {
+    @apply text-4xl font-extrabold tracking-widest;
+  }
+
+  .risk-result.pass .risk-status {
+    @apply text-[#3fb950];
+  }
+
+  .risk-result.blocked .risk-status {
+    @apply text-[#f85149];
+  }
+
+  .risk-instruction {
+    @apply mb-4 rounded-lg border border-[#30363d] bg-surface-card p-4;
+  }
+
+  .risk-violations li {
+    @apply mb-2 border-l-4 border-[#f85149] bg-[#f85149]/10 px-4 py-2 text-sm;
+  }
+
+  .risk-clear {
+    @apply mb-6 text-[#3fb950];
+  }
+
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4;
+  }
+
+  .modal {
+    @apply max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border-2 border-[#d29922] bg-surface p-6;
+  }
+
+  .modal-header h2 {
+    @apply text-[#d29922];
+  }
+
+  .tick-indicator {
+    @apply font-mono text-sm text-[#8b949e];
+  }
+}
