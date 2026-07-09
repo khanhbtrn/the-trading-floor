@@ -11,6 +11,7 @@ export interface SidebarNpcPanelProps {
   highlighted?: boolean;
   badge?: boolean;
   statusLine?: string;
+  error?: string | null;
   showFreeTextInput?: boolean;
   onSend?: (text: string) => void;
   onMicPress?: () => void;
@@ -25,6 +26,7 @@ export function SidebarNpcPanel({
   highlighted = false,
   badge = false,
   statusLine,
+  error,
   showFreeTextInput = true,
   onSend,
   onMicPress,
@@ -62,6 +64,9 @@ export function SidebarNpcPanel({
         <div className="max-h-[280px] overflow-hidden px-1 pb-1">
           {statusLine && (
             <p className="mb-2 px-2 font-mono text-[10px] text-zinc-400">{statusLine}</p>
+          )}
+          {error && (
+            <p className="mb-2 px-2 font-mono text-[10px] text-red-400">{error}</p>
           )}
           <div className="max-h-[240px] overflow-y-auto">
             <NpcChatView

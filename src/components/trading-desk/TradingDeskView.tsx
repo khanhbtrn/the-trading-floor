@@ -17,6 +17,8 @@ export interface TradingDeskViewProps {
   cash: number;
   pnl: number;
   disabled?: boolean;
+  buyDisabled?: boolean;
+  sellDisabled?: boolean;
   onBuy?: (size: number) => void;
   onSell?: (size: number) => void;
 }
@@ -44,6 +46,8 @@ export function TradingDeskView({
   cash,
   pnl,
   disabled = false,
+  buyDisabled = false,
+  sellDisabled = false,
   onBuy,
   onSell,
 }: TradingDeskViewProps) {
@@ -375,7 +379,7 @@ export function TradingDeskView({
                 <button
                   type="button"
                   className="tdv-btn-buy"
-                  disabled={disabled || size <= 0}
+                  disabled={disabled || buyDisabled || size <= 0}
                   onClick={() => onBuy?.(size)}
                 >
                   BUY
@@ -383,7 +387,7 @@ export function TradingDeskView({
                 <button
                   type="button"
                   className="tdv-btn-sell"
-                  disabled={disabled || size <= 0 || qty <= 0}
+                  disabled={disabled || sellDisabled || size <= 0 || qty <= 0}
                   onClick={() => onSell?.(size)}
                 >
                   SELL
