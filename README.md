@@ -1,5 +1,7 @@
 # The Trading Floor — Career Edition
 
+**Live demo:** [https://workspace-zeta-plum.vercel.app](https://workspace-zeta-plum.vercel.app)
+
 Equity trading floor simulation with persistent career progression. Single dashboard at `/`.
 
 ## Stack
