@@ -9,6 +9,11 @@ import {
 } from '../src/lib/sessionRules';
 import { normalizeNpcResponse, salvageNpcResponse, clampPersonaReply } from '../src/lib/npc';
 import { computeRank } from '../src/lib/rank';
+import {
+  formatInstructionLabel,
+  pctToBuyShares,
+  pctToSellShares,
+} from '../src/lib/tradeSizing';
 import { MAX_POSITION_PCT_OF_CASH } from '../src/lib/gameReducer';
 
 // Risk gate
@@ -85,5 +90,18 @@ const longCompliance = 'b'.repeat(400);
 const clampedCompliance = clampPersonaReply('compliance', longCompliance);
 assert.equal(clampedCompliance.length, 320);
 assert.ok(clampedCompliance.endsWith('…'));
+
+assert.equal(
+  pctToBuyShares(50, 100_000, 100),
+  500
+);
+assert.equal(
+  pctToSellShares(25, 100_000, 100, 1000),
+  250
+);
+assert.equal(
+  formatInstructionLabel('buy', 40),
+  'BUY 40% of cash'
+);
 
 console.log('verify-game-logic: all checks passed');
