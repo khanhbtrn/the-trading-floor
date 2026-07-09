@@ -30,14 +30,21 @@ export function ScorecardModal({
   onClose,
 }: ScorecardModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+    <div
+      className="scorecard-modal__backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="scorecard-title"
+    >
       <motion.div
-        className="scorecard-modal w-full max-w-md rounded border border-cyan-900/50 bg-zinc-950 p-6"
+        className="scorecard-modal w-full max-w-md max-h-[min(90vh,720px)] overflow-y-auto rounded border border-cyan-900/50 bg-zinc-950 p-6"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
-        <h2 className="font-pixel text-sm text-cyan-300">SESSION SCORECARD</h2>
+        <h2 id="scorecard-title" className="font-pixel text-sm text-cyan-300">
+          SESSION SCORECARD
+        </h2>
         <p className="mt-1 font-mono text-xs text-zinc-500">
           Session complete — {scenarioName}.
         </p>
@@ -66,18 +73,20 @@ export function ScorecardModal({
         </div>
 
         {rankIncreased && (
-          <div className="scorecard-modal__rank-up mt-4 rounded border border-amber-500/40 bg-gradient-to-b from-amber-950/40 to-zinc-950 p-4 text-center">
-            <p className="scorecard-modal__rank-up-label font-pixel">RANK UP</p>
-            <p className="scorecard-modal__rank-up-rank font-pixel">{rank}</p>
+          <section
+            className="scorecard-modal__rank-up mt-4 rounded border border-amber-500/35 bg-amber-950/20 px-4 py-3"
+            aria-label="Rank promotion"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="scorecard-modal__rank-up-label font-pixel">RANK UP</p>
+              <p className="scorecard-modal__rank-up-rank font-pixel">{rank}</p>
+            </div>
             {previousRank && (
-              <p className="mt-1 font-mono text-[10px] text-zinc-500">
-                Promoted from {previousRank}
+              <p className="mt-1 font-mono text-[10px] text-zinc-400">
+                Promoted from {previousRank} · career milestone reached
               </p>
             )}
-            <p className="mt-2 font-mono text-[10px] text-zinc-500">
-              Career milestone reached
-            </p>
-          </div>
+          </section>
         )}
 
         {persistMessage && (
