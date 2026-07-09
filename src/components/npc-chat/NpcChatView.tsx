@@ -63,7 +63,7 @@ export function NpcChatView({
   const theme = getNpcTheme(persona);
 
   const npcDisplay = displayNpcName(npcName);
-  const npcInitial = (npcDisplay.trim()[0] || 'N').toUpperCase();
+  const npcInitial = theme.initial;
   const npcTag = npcDisplay.toUpperCase();
   const canSend = text.trim().length > 0 && !isLoading;
 
@@ -79,7 +79,8 @@ export function NpcChatView({
   useEffect(() => {
     if (messages.length > prevMsgCount.current) {
       const last = messages[messages.length - 1];
-      if (last?.role === 'npc') {
+      // Manager/compliance pings are handled by the comms dock unread badge.
+      if (last?.role === 'npc' && persona === 'tech') {
         playNpcMessageSound(persona);
       }
     }
