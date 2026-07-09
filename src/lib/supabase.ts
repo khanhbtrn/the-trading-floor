@@ -3,18 +3,49 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 let browserClient: SupabaseClient | null = null;
 let serverClient: SupabaseClient | null = null;
 
+function trimEnv(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 function getUrl(): string | undefined {
-  return (
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? undefined
+  return trimEnv(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
   );
 }
 
 function getAnonKey(): string | undefined {
-  return (
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-    process.env.SUPABASE_ANON_KEY ??
-    undefined
+  return trimEnv(
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY
   );
+}
+
+function isValidHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function createSupabaseClient(url: string, key: string): SupabaseClient | null {
+  if (!isValidHttpUrl(url)) {
+    console.error('Invalid Supabase URL — expected https://<project>.supabase.co');
+    return null;
+  }
+
+  try {
+    return createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  } catch (error) {
+    console.error(
+      'Failed to create Supabase client:',
+      error instanceof Error ? error.message : error
+    );
+    return null;
+  }
 }
 
 /** Browser client — uses NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY. */
@@ -26,9 +57,7 @@ export function getSupabaseBrowser(): SupabaseClient | null {
   const key = getAnonKey();
   if (!url || !key) return null;
 
-  browserClient = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  browserClient = createSupabaseClient(url, key);
   return browserClient;
 }
 
@@ -37,13 +66,10 @@ export function getSupabaseServer(): SupabaseClient | null {
   if (serverClient) return serverClient;
 
   const url = getUrl();
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? getAnonKey();
+  const key = trimEnv(process.env.SUPABASE_SERVICE_ROLE_KEY) ?? getAnonKey();
   if (!url || !key) return null;
 
-  serverClient = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  serverClient = createSupabaseClient(url, key);
   return serverClient;
 }
 

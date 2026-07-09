@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase';
 import type { Rank } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 const VALID_RANKS: Rank[] = [
   'Junior Trader',
   'Associate',
