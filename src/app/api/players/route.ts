@@ -70,3 +70,56 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ player: data });
 }
+
+export async function PATCH(request: Request) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const playerId =
+    typeof body === 'object' && body !== null && 'playerId' in body
+      ? String((body as { playerId: unknown }).playerId).trim()
+      : '';
+
+  if (!playerId) {
+    return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
+  }
+
+  const introCompleted =
+    typeof body === 'object' &&
+    body !== null &&
+    'introCompleted' in body &&
+    (body as { introCompleted: unknown }).introCompleted === true;
+
+  if (!introCompleted) {
+    return NextResponse.json({ error: 'introCompleted: true is required' }, { status: 400 });
+  }
+
+  const supabase = getSupabaseServer();
+  if (!supabase) {
+    return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 });
+  }
+
+  const { data, error } = await supabase
+    .from('players')
+    .update({
+      intro_completed: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', playerId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error('players intro update failed:', error?.message);
+    return NextResponse.json(
+      { error: error?.message ?? 'Failed to update player' },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ player: data });
+}

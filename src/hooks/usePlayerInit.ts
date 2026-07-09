@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGame } from '@/context/GameProvider';
 import {
   clearStoredPlayerId,
+  completeIntro,
   createPlayer,
   fetchPlayer,
   getStoredPlayerId,
+  playerIntroCompleted,
   playerRowToRank,
 } from '@/lib/playerService';
 
@@ -15,6 +17,8 @@ export function usePlayerInit() {
   const [playerReady, setPlayerReady] = useState(false);
   const [playerLoading, setPlayerLoading] = useState(true);
   const [playerError, setPlayerError] = useState<string | null>(null);
+  const [introCompleted, setIntroCompleted] = useState(true);
+  const [introCompleting, setIntroCompleting] = useState(false);
   const hadStoredId = useRef(false);
 
   useEffect(() => {
@@ -28,6 +32,7 @@ export function usePlayerInit() {
       rank: string;
       career_pnl: number;
       sessions_played?: number;
+      intro_completed?: boolean;
     }) => {
       dispatch({
         type: 'LOAD_PLAYER',
@@ -37,6 +42,9 @@ export function usePlayerInit() {
         careerPnL: Number(row.career_pnl),
         sessionsPlayed: row.sessions_played ?? 0,
       });
+      setIntroCompleted(
+        row.intro_completed === true || (row.sessions_played ?? 0) > 0
+      );
       setPlayerReady(true);
       setPlayerError(null);
     },
@@ -84,6 +92,25 @@ export function usePlayerInit() {
     setPlayerLoading(false);
   };
 
+  const finishIntro = useCallback(async () => {
+    const playerId = getStoredPlayerId();
+    if (!playerId) {
+      setIntroCompleted(true);
+      return;
+    }
+
+    setIntroCompleting(true);
+    const result = await completeIntro(playerId);
+    setIntroCompleting(false);
+
+    if (result.ok) {
+      setIntroCompleted(playerIntroCompleted(result.data));
+    } else {
+      // Allow dashboard access even if persistence fails
+      setIntroCompleted(true);
+    }
+  }, []);
+
   return {
     playerReady,
     playerLoading,
@@ -91,5 +118,8 @@ export function usePlayerInit() {
     handleCreatePlayer,
     needsLogin: !playerReady && !playerLoading,
     isBooting: playerLoading && hadStoredId.current && !playerReady,
+    needsIntro: playerReady && !introCompleted,
+    finishIntro,
+    introCompleting,
   };
 }

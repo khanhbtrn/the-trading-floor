@@ -86,3 +86,37 @@ export function playerRowToRank(rank: string): Rank {
   const valid: Rank[] = ['Junior Trader', 'Associate', 'VP', 'Desk Head'];
   return valid.includes(rank as Rank) ? (rank as Rank) : 'Junior Trader';
 }
+
+export function playerIntroCompleted(row: PlayerRow): boolean {
+  if (row.intro_completed === true) return true;
+  return (row.sessions_played ?? 0) > 0;
+}
+
+export async function completeIntro(
+  playerId: string
+): Promise<PlayerServiceResult<PlayerRow>> {
+  try {
+    const res = await fetch('/api/players', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ playerId, introCompleted: true }),
+    });
+
+    const data = (await res.json()) as { player?: PlayerRow; error?: string };
+
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? `Update failed (${res.status})` };
+    }
+
+    if (!data.player) {
+      return { ok: false, error: 'No player returned from server.' };
+    }
+
+    return { ok: true, data: data.player };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Network error',
+    };
+  }
+}

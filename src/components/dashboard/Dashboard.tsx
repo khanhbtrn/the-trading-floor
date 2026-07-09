@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard-shell';
+import { GameIntroSequence } from '@/components/game-intro';
 import { PlayerLogin, PlayerBootScreen } from '@/components/player-login';
 import { ScorecardModal } from '@/components/scorecard-modal';
 import { SidebarNpcPanel } from '@/components/sidebar-npc-panel';
@@ -34,8 +35,17 @@ const TECH_GREETING =
 export function Dashboard() {
   const { state, dispatch } = useGame();
 
-  const { playerReady, playerLoading, playerError, handleCreatePlayer, needsLogin, isBooting } =
-    usePlayerInit();
+  const {
+    playerReady,
+    playerLoading,
+    playerError,
+    handleCreatePlayer,
+    needsLogin,
+    isBooting,
+    needsIntro,
+    finishIntro,
+    introCompleting,
+  } = usePlayerInit();
 
   const [selectedScenarioId, setSelectedScenarioId] = useState('2008');
   const [tick, setTick] = useState(0);
@@ -536,6 +546,17 @@ export function Dashboard() {
         onSubmit={handleCreatePlayer}
         loading={playerLoading}
         error={playerError}
+      />
+    );
+  }
+
+  if (needsIntro) {
+    return (
+      <GameIntroSequence
+        playerName={state.playerName}
+        completing={introCompleting}
+        onComplete={() => void finishIntro()}
+        onSkip={() => void finishIntro()}
       />
     );
   }

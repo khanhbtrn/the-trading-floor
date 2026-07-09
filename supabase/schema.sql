@@ -6,6 +6,7 @@ create table if not exists public.players (
   rank text default 'Junior Trader',
   career_pnl numeric default 0,
   sessions_played integer default 0,
+  intro_completed boolean default false,
   created_at timestamp default now(),
   updated_at timestamp default now()
 );
