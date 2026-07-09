@@ -61,14 +61,14 @@ export function SidebarNpcPanel({
       </button>
 
       {!collapsed && (
-        <div className="max-h-[280px] overflow-hidden px-1 pb-1">
+        <div className="sidebar-npc-body max-h-[min(280px,38vh)] overflow-hidden px-1 pb-1 sm:max-h-[280px]">
           {statusLine && (
             <p className="mb-2 px-2 font-mono text-[10px] text-zinc-400">{statusLine}</p>
           )}
           {error && (
             <p className="mb-2 px-2 font-mono text-[10px] text-red-400">{error}</p>
           )}
-          <div className="max-h-[240px] overflow-y-auto">
+          <div className="max-h-[min(200px,30vh)] overflow-y-auto sm:max-h-[240px]">
             <NpcChatView
               variant="embedded"
               messages={messages}
