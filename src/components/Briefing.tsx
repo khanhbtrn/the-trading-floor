@@ -27,6 +27,7 @@ export function Briefing({ state, onComplete }: BriefingProps) {
       <ChatUI
         script={scenario.briefingScript}
         startNodeId={startNodeId}
+        variant="embedded"
         onInstruction={handleInstruction}
       />
     </div>

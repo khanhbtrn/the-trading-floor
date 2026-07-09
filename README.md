@@ -33,6 +33,8 @@ npm run build
 
 The desk screen uses an imported HUD design (`src/components/trading-desk/TradingDeskView.tsx`), converted from the Claude design export saved at `design/TradingDeskView-standalone.html`.
 
+NPC chat screens use `src/components/npc-chat/NpcChatView.tsx`, converted from `design/NpcChat-standalone.html`.
+
 
 ```
 SCENARIO_SELECT → BRIEFING → RISK_CHECK → [ESCALATION if blocked] → DESK → SCORECARD

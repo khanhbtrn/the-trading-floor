@@ -34,6 +34,7 @@ export function Escalation({ state, onOverride, onReject }: EscalationProps) {
       <ChatUI
         script={scenario.complianceScript}
         startNodeId={startNodeId}
+        variant="embedded"
         onResolve={handleResolve}
       />
     </div>

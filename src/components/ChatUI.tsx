@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { NpcScriptNode, ScriptChoice } from '../types';
+import { NpcChatView, type ChatMessage } from './npc-chat';
 
 interface ChatUIProps {
   script: NpcScriptNode[];
   startNodeId: string;
+  variant?: 'standalone' | 'embedded';
   onInstruction?: (instruction: NonNullable<NpcScriptNode['instruction']>) => void;
   onResolve?: (choice: ScriptChoice) => void;
 }
@@ -11,22 +13,32 @@ interface ChatUIProps {
 export function ChatUI({
   script,
   startNodeId,
+  variant = 'embedded',
   onInstruction,
   onResolve,
 }: ChatUIProps) {
   const [currentNodeId, setCurrentNodeId] = useState(startNodeId);
-  const [history, setHistory] = useState<{ speaker: string; text: string }[]>([]);
+  const [history, setHistory] = useState<ChatMessage[]>([]);
 
   const currentNode = script.find((n) => n.id === currentNodeId);
+
+  const messages = useMemo(() => {
+    if (!currentNode) return history;
+    return [
+      ...history,
+      { role: 'npc' as const, text: currentNode.text },
+    ];
+  }, [history, currentNode]);
 
   if (!currentNode) {
     return <div className="chat-ui error">Dialogue node not found.</div>;
   }
 
-  const advanceToNode = (nextNodeId: string) => {
+  const advanceToNode = (nextNodeId: string, userLabel: string) => {
     setHistory((h) => [
       ...h,
-      { speaker: currentNode.speaker, text: currentNode.text },
+      { role: 'npc', text: currentNode.text },
+      { role: 'user', text: userLabel },
     ]);
     setCurrentNodeId(nextNodeId);
   };
@@ -35,14 +47,26 @@ export function ChatUI({
     if (choice.outcome === 'override' || choice.outcome === 'reject' || choice.outcome === 'resolve') {
       setHistory((h) => [
         ...h,
-        { speaker: currentNode.speaker, text: currentNode.text },
+        { role: 'npc', text: currentNode.text },
+        { role: 'user', text: choice.label },
       ]);
       onResolve?.(choice);
       return;
     }
 
     if (choice.nextNodeId) {
-      advanceToNode(choice.nextNodeId);
+      const nextNode = script.find((n) => n.id === choice.nextNodeId);
+      if (nextNode?.instruction) {
+        setHistory((h) => [
+          ...h,
+          { role: 'npc', text: currentNode.text },
+          { role: 'user', text: choice.label },
+          { role: 'npc', text: nextNode.text },
+        ]);
+        onInstruction?.(nextNode.instruction);
+        return;
+      }
+      advanceToNode(choice.nextNodeId, choice.label);
     }
   };
 
@@ -50,52 +74,28 @@ export function ChatUI({
     if (currentNode.instruction) {
       setHistory((h) => [
         ...h,
-        { speaker: currentNode.speaker, text: currentNode.text },
+        { role: 'npc', text: currentNode.text },
       ]);
       onInstruction?.(currentNode.instruction);
     }
   };
 
+  const choices =
+    currentNode.choices?.map((c) => ({ id: c.id, label: c.label })) ?? [];
+
   return (
-    <div className="chat-ui">
-      <div className="chat-messages">
-        {history.map((msg, i) => (
-          <div key={i} className="chat-message npc">
-            <span className="chat-speaker">{msg.speaker}</span>
-            <p>{msg.text}</p>
-          </div>
-        ))}
-        <div className="chat-message npc current">
-          <span className="chat-speaker">{currentNode.speaker}</span>
-          <p>{currentNode.text}</p>
-        </div>
-      </div>
-
-      {currentNode.instruction && (
-        <div className="chat-instruction-preview">
-          <strong>Instruction issued:</strong> {currentNode.instruction.text}
-        </div>
-      )}
-
-      {currentNode.instruction && (
-        <button className="btn btn-primary" onClick={handleInstructionProceed}>
-          Proceed
-        </button>
-      )}
-
-      {currentNode.choices && currentNode.choices.length > 0 && (
-        <div className="chat-choices">
-          {currentNode.choices.map((choice) => (
-            <button
-              key={choice.id}
-              className="btn btn-choice"
-              onClick={() => handleChoice(choice)}
-            >
-              {choice.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <NpcChatView
+      variant={variant}
+      messages={messages}
+      npcName={currentNode.speaker}
+      choices={currentNode.instruction ? [] : choices}
+      onChoice={(choice) => {
+        const scriptChoice = currentNode.choices?.find((c) => c.id === choice.id);
+        if (scriptChoice) handleChoice(scriptChoice);
+      }}
+      instructionPreview={currentNode.instruction?.text}
+      onProceed={currentNode.instruction ? handleInstructionProceed : undefined}
+      proceedLabel="Proceed to Risk Check"
+    />
   );
 }

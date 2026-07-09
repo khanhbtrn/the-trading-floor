@@ -8,4 +8,11 @@ Imported design exports from Claude design projects.
 - **Component:** `src/components/trading-desk/TradingDeskView.tsx` — converted to React + TypeScript
 - **Styles:** `src/components/trading-desk/TradingDeskView.css`
 
-The standalone HTML uses the DC runtime bundler format. The React component preserves the visual design (HUD scanlines, SVG price chart, order ticket, P&L panel) and wires into game state via props.
+## NpcChat
+
+- **Source:** `NpcChat-standalone.html` — original bundled export from Claude design
+- **Component:** `src/components/npc-chat/NpcChatView.tsx` — converted to React + TypeScript
+- **Styles:** `src/components/npc-chat/NpcChatView.css`
+- **Adapter:** `src/components/ChatUI.tsx` — wires scripted dialogue into the HUD chat UI
+
+The standalone HTML files use the DC runtime bundler format. React components preserve the visual design and wire into game state via props.
