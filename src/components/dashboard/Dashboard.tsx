@@ -57,7 +57,7 @@ export function Dashboard() {
     playerLoading,
     playerError,
     handleEnterName,
-    handleLogout,
+    logoutPlayer,
     needsLogin,
     needsIntro,
     finishIntro,
@@ -118,6 +118,7 @@ export function Dashboard() {
     rankIncreased: boolean;
   } | null>(null);
   const [endingSession, setEndingSession] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const prevRankRef = useRef(state.rank);
 
   const scenario = state.currentScenarioId
@@ -690,22 +691,38 @@ export function Dashboard() {
     orderCountdown.clear();
   };
 
-  const handleEndSession = async () => {
-    if (!state.currentScenarioId || endingSession) return;
-    setEndingSession(true);
+  useEffect(() => {
+    if (!state.currentScenarioId) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [state.currentScenarioId]);
 
-    const newCareerPnL = state.careerPnL + state.pnl;
+  const persistSessionToSupabase = useCallback(async () => {
     const previousRank = prevRankRef.current;
+    const newCareerPnL = state.careerPnL + state.pnl;
     const newRank = computeRank(newCareerPnL, state.conductScore);
     const rankIncreased = RANK_ORDER[newRank] > RANK_ORDER[previousRank];
-    const newSessionsPlayed = state.sessionsPlayed + 1;
     const snapshot = {
       sessionPnL: state.pnl,
       careerPnL: newCareerPnL,
       conductScore: state.conductScore,
       rank: newRank,
       auditTrail: [...state.auditTrail],
+      previousRank,
+      rankIncreased,
+      scenarioName:
+        getScenarioById(state.currentScenarioId ?? '')?.displayName ??
+        'the session',
     };
+
+    if (!state.currentScenarioId || !state.playerId) {
+      return { ok: false as const, reason: 'No active session', snapshot };
+    }
+
+    const newSessionsPlayed = state.sessionsPlayed + 1;
 
     const result = await endSession({
       playerId: state.playerId,
@@ -717,34 +734,77 @@ export function Dashboard() {
       sessionsPlayed: newSessionsPlayed,
     });
 
+    if (!result.ok) {
+      return { ok: false as const, reason: result.reason, snapshot };
+    }
+
     dispatch({
       type: 'END_SESSION',
       rank: newRank,
       careerPnL: newCareerPnL,
       sessionsPlayed: newSessionsPlayed,
     });
-
     prevRankRef.current = newRank;
 
-    const scenarioName =
-      getScenarioById(state.currentScenarioId)?.displayName ?? 'the session';
+    return { ok: true as const, snapshot };
+  }, [
+    state.currentScenarioId,
+    state.playerId,
+    state.careerPnL,
+    state.pnl,
+    state.conductScore,
+    state.sessionsPlayed,
+    state.auditTrail,
+    dispatch,
+  ]);
 
-    setScorecardData({
-      ...snapshot,
-      scenarioName,
-      previousRank,
-      rankIncreased,
-      persistMessage: result.ok
-        ? 'Career progress saved to Supabase.'
-        : `Session ended (save failed: ${result.reason})`,
-    });
-    setScorecardOpen(true);
-    setEndingSession(false);
-    void loadLeaderboard();
+  const finalizeSessionUi = useCallback(() => {
     resetNpcChats();
     setTick(0);
     setPrice(0);
     setRows([]);
+    void loadLeaderboard();
+  }, [loadLeaderboard]);
+
+  const handleEndSession = async () => {
+    if (!state.currentScenarioId || endingSession) return;
+    setEndingSession(true);
+    setSaveError(null);
+
+    const outcome = await persistSessionToSupabase();
+
+    setScorecardData({
+      ...outcome.snapshot,
+      persistMessage: outcome.ok
+        ? 'Career progress saved to Supabase.'
+        : `Save failed: ${outcome.reason}. Your session is still open — try again.`,
+    });
+    setScorecardOpen(true);
+    setEndingSession(false);
+
+    if (outcome.ok) {
+      finalizeSessionUi();
+    }
+  };
+
+  const handleLogout = async () => {
+    if (endingSession) return;
+    setSaveError(null);
+
+    if (state.currentScenarioId && state.playerId) {
+      setEndingSession(true);
+      const outcome = await persistSessionToSupabase();
+      setEndingSession(false);
+      if (!outcome.ok) {
+        setSaveError(
+          `Could not save progress: ${outcome.reason}. Tap End Session to retry.`
+        );
+        return;
+      }
+      finalizeSessionUi();
+    }
+
+    logoutPlayer();
   };
 
   const priceHistory = useMemo<PriceHistoryPoint[]>(
@@ -785,7 +845,8 @@ export function Dashboard() {
       <button
         type="button"
         className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
-        onClick={handleLogout}
+        onClick={() => void handleLogout()}
+        disabled={endingSession}
       >
         Log Out
       </button>
@@ -805,6 +866,12 @@ export function Dashboard() {
         <>
           <span className="text-zinc-500">|</span>
           <span className="text-amber-400">GLITCH ACTIVE</span>
+        </>
+      )}
+      {saveError && (
+        <>
+          <span className="text-zinc-500">|</span>
+          <span className="text-red-400">{saveError}</span>
         </>
       )}
     </div>
