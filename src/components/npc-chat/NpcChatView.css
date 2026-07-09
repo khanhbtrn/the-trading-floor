@@ -1,0 +1,423 @@
+@keyframes npc-scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes npc-flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97% { opacity: 0.86; }
+  98% { opacity: 1; }
+  99% { opacity: 0.9; }
+}
+
+@keyframes npc-blip {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes npc-bubble-in {
+  0% { opacity: 0; transform: translateY(8px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes npc-type-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+@keyframes npc-mic-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(103, 232, 249, 0.5); }
+  100% { box-shadow: 0 0 0 10px rgba(103, 232, 249, 0); }
+}
+
+.npc-root {
+  background: radial-gradient(ellipse at top, #0a0f14 0%, #000000 60%);
+  color: #e5e7eb;
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.npc-root.standalone {
+  min-height: 100vh;
+}
+
+.npc-root.embedded {
+  min-height: 560px;
+  border-radius: 8px;
+}
+
+.npc-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.015) 0px,
+    rgba(255, 255, 255, 0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  animation: npc-flicker 6s infinite;
+}
+
+.npc-scan-beam {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 41;
+  overflow: hidden;
+  opacity: 0.05;
+}
+
+.npc-scan-beam > div {
+  width: 100%;
+  height: 40%;
+  background: linear-gradient(180deg, transparent, #22d3ee, transparent);
+  animation: npc-scan 7s linear infinite;
+}
+
+.npc-panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 520px;
+  height: min(760px, calc(100vh - 40px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  background: rgba(8, 14, 18, 0.75);
+  box-shadow:
+    0 0 40px rgba(34, 211, 238, 0.06),
+    0 0 24px rgba(34, 211, 238, 0.05) inset;
+}
+
+.npc-root.embedded .npc-panel {
+  height: 100%;
+  min-height: 520px;
+  max-height: 720px;
+}
+
+.npc-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.npc-pixel {
+  font-family: 'Press Start 2P', monospace;
+  letter-spacing: 0.03em;
+}
+
+.npc-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: #22d3ee;
+  opacity: 0.7;
+}
+
+.npc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(34, 211, 238, 0.25);
+  flex-shrink: 0;
+}
+
+.npc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.npc-avatar {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(103, 232, 249, 0.5);
+  background: rgba(34, 211, 238, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.15) inset;
+}
+
+.npc-avatar-initial {
+  font-size: 12px;
+  color: #67e8f9;
+  text-shadow: 0 0 8px rgba(103, 232, 249, 0.7);
+}
+
+.npc-online-dot {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade80;
+  border: 1px solid #050607;
+  animation: npc-blip 1.6s ease-in-out infinite;
+}
+
+.npc-name {
+  font-size: 11px;
+  color: #67e8f9;
+  text-shadow: 0 0 10px rgba(103, 232, 249, 0.5);
+}
+
+.npc-status {
+  font-size: 10px;
+  color: #4ade80;
+  margin-top: 5px;
+  letter-spacing: 0.05em;
+}
+
+.npc-link-label {
+  font-size: 8px;
+  color: #3f3f46;
+}
+
+.npc-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.npc-log::-webkit-scrollbar {
+  width: 8px;
+}
+
+.npc-log::-webkit-scrollbar-track {
+  background: rgba(34, 211, 238, 0.04);
+}
+
+.npc-log::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.25);
+  border-radius: 0;
+}
+
+.npc-log::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.45);
+}
+
+.npc-bubble-row {
+  display: flex;
+  animation: npc-bubble-in 0.32s ease-out both;
+}
+
+.npc-bubble-row.user {
+  justify-content: flex-end;
+}
+
+.npc-bubble-row.npc {
+  justify-content: flex-start;
+}
+
+.npc-bubble-col {
+  max-width: 80%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.npc-bubble-col.user {
+  align-items: flex-end;
+}
+
+.npc-bubble-col.npc {
+  align-items: flex-start;
+}
+
+.npc-bubble-tag {
+  font-size: 7px;
+  opacity: 0.8;
+  padding: 0 2px;
+}
+
+.npc-bubble-tag.user {
+  color: #4ade80;
+}
+
+.npc-bubble-tag.npc {
+  color: #67e8f9;
+}
+
+.npc-bubble {
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 10px 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.npc-bubble.user {
+  color: #dcfce7;
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  box-shadow: 0 0 14px rgba(74, 222, 128, 0.06);
+}
+
+.npc-bubble.npc {
+  color: #cffafe;
+  background: rgba(34, 211, 238, 0.07);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.06);
+}
+
+.npc-typing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  background: rgba(34, 211, 238, 0.07);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+}
+
+.npc-type-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #67e8f9;
+  animation: npc-type-dot 1.1s infinite;
+}
+
+.npc-type-dot:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.npc-type-dot:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.npc-footer {
+  flex-shrink: 0;
+  padding: 14px;
+  border-top: 1px solid rgba(34, 211, 238, 0.25);
+}
+
+.npc-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.npc-choice-btn {
+  width: 100%;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 12px 14px;
+  color: #cffafe;
+  background: rgba(34, 211, 238, 0.07);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  transition: all 0.15s ease;
+}
+
+.npc-choice-btn:hover {
+  background: rgba(34, 211, 238, 0.16);
+  border-color: #67e8f9;
+  box-shadow: 0 0 14px rgba(103, 232, 249, 0.25);
+}
+
+.npc-choice-btn:active {
+  transform: scale(0.98);
+}
+
+.npc-instruction-preview {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #e5e7eb;
+  background: rgba(210, 153, 34, 0.1);
+  border: 1px solid rgba(210, 153, 34, 0.5);
+}
+
+.npc-proceed-btn {
+  width: 100%;
+  font-size: 11px;
+  padding: 14px;
+  color: #050607;
+  background: #67e8f9;
+  border: 1px solid #67e8f9;
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  box-shadow: 0 0 16px rgba(103, 232, 249, 0.4);
+  transition: all 0.15s ease;
+}
+
+.npc-proceed-btn:hover {
+  box-shadow: 0 0 20px rgba(103, 232, 249, 0.6);
+}
+
+.npc-input-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.npc-input-wrap {
+  flex: 1;
+  position: relative;
+  border: 1px solid rgba(63, 63, 70, 0.6);
+  background: rgba(2, 6, 7, 0.7);
+  transition: border-color 0.15s ease;
+}
+
+.npc-input-wrap.focused {
+  border-color: rgba(103, 232, 249, 0.6);
+  box-shadow: 0 0 14px rgba(103, 232, 249, 0.12);
+}
+
+.npc-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #e5e7eb;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px 13px;
+  max-height: 110px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.npc-send-btn {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.npc-send-btn.enabled {
+  border-color: #67e8f9;
+  background: #67e8f9;
+  color: #050607;
+  cursor: pointer;
+  box-shadow: 0 0 16px rgba(103, 232, 249, 0.4);
+}
+
+.npc-send-btn.disabled {
+  border-color: rgba(63, 63, 70, 0.6);
+  background: rgba(34, 211, 238, 0.05);
+  color: #3f3f46;
+  cursor: not-allowed;
+}
