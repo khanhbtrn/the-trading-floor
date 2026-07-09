@@ -8,7 +8,8 @@
     "postbuild": "tsx scripts/migrate-intro.ts",
     "start": "next start",
     "lint": "next lint",
-    "migrate:intro": "tsx scripts/migrate-intro.ts"
+    "migrate:intro": "tsx scripts/migrate-intro.ts",
+    "verify:game": "tsx scripts/verify-game-logic.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
