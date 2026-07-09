@@ -16,8 +16,14 @@ import { parseScenarioCsv } from '@/lib/csv';
 import {
   DEFAULT_STARTING_CASH,
   GLITCH_TICK,
-  MAX_POSITION_PCT_OF_CASH,
 } from '@/lib/gameReducer';
+import {
+  clampConduct,
+  compliantResizeBonus,
+  CONDUCT_GLITCH_PANIC_PENALTY,
+  CONDUCT_OVERRIDE_PENALTY,
+  instructionFailsRisk,
+} from '@/lib/sessionRules';
 import { requestNpc } from '@/lib/npcClient';
 import { usePlayerInit } from '@/hooks/usePlayerInit';
 import { computeRank, RANK_ORDER } from '@/lib/rank';
@@ -89,6 +95,7 @@ export function Dashboard() {
     careerPnL: number;
     conductScore: number;
     rank: Rank;
+    scenarioName: string;
     auditTrail: typeof state.auditTrail;
     persistMessage: string | null;
   } | null>(null);
@@ -243,17 +250,25 @@ export function Dashboard() {
 
   const evaluateInstruction = useCallback(
     (instruction: NonNullable<typeof state.currentInstruction>) => {
-      const failsRisk = instruction.sizePctOfCash > MAX_POSITION_PCT_OF_CASH;
-      if (failsRisk) {
+      if (instructionFailsRisk(instruction)) {
         dispatch({ type: 'PATCH', patch: { blocked: true } });
         setRiskStatus('BLOCKED — see Compliance');
         setComplianceUnread((c) => c + 1);
       } else {
-        dispatch({ type: 'PATCH', patch: { blocked: false } });
-        setRiskStatus('PASS — execute on desk');
+        const bonus = compliantResizeBonus(state.auditTrail, instruction);
+        dispatch({
+          type: 'PATCH',
+          patch: {
+            blocked: false,
+            conductScore: clampConduct(state.conductScore + bonus),
+          },
+        });
+        setRiskStatus(
+          bonus > 0 ? 'PASS — compliant resize (+10 conduct)' : 'PASS — execute on desk'
+        );
       }
     },
-    [dispatch]
+    [dispatch, state.auditTrail, state.conductScore]
   );
 
   const sendManager = useCallback(
@@ -277,6 +292,7 @@ export function Dashboard() {
         setManagerUnread((c) => c + 1);
 
         if (npc.instruction) {
+          setOverrideGranted(false);
           dispatch({
             type: 'PATCH',
             patch: { currentInstruction: npc.instruction },
@@ -316,7 +332,9 @@ export function Dashboard() {
             type: 'PATCH',
             patch: {
               blocked: false,
-              conductScore: Math.max(0, state.conductScore - 20),
+              conductScore: clampConduct(
+                state.conductScore - CONDUCT_OVERRIDE_PENALTY
+              ),
               auditTrail: [
                 ...state.auditTrail,
                 {
@@ -332,12 +350,14 @@ export function Dashboard() {
           dispatch({
             type: 'PATCH',
             patch: {
+              currentInstruction: null,
               auditTrail: [
                 ...state.auditTrail,
                 { source: 'blocked', tick, note: 'Compliance rejected override' },
               ],
             },
           });
+          setRiskStatus('Rejected — ask Manager for a compliant size');
         }
       } finally {
         setComplianceLoading(false);
@@ -394,7 +414,8 @@ export function Dashboard() {
 
   const tradeUnlocked =
     !!state.currentInstruction && !state.blocked && !state.glitchActive;
-  const managerGreyed = state.blocked && !overrideGranted;
+  const managerGreyed =
+    state.blocked && !overrideGranted && !!state.currentInstruction;
   const instructionAction = state.currentInstruction?.action;
   const buyAllowed = tradeUnlocked && instructionAction === 'buy';
   const sellAllowed = tradeUnlocked && instructionAction === 'sell';
@@ -405,6 +426,9 @@ export function Dashboard() {
         dispatch({
           type: 'PATCH',
           patch: {
+            conductScore: clampConduct(
+              state.conductScore - CONDUCT_GLITCH_PANIC_PENALTY
+            ),
             auditTrail: [
               ...state.auditTrail,
               { source: 'glitch-panic', tick, action: 'buy', size },
@@ -452,6 +476,9 @@ export function Dashboard() {
         dispatch({
           type: 'PATCH',
           patch: {
+            conductScore: clampConduct(
+              state.conductScore - CONDUCT_GLITCH_PANIC_PENALTY
+            ),
             auditTrail: [
               ...state.auditTrail,
               { source: 'glitch-panic', tick, action: 'sell', size },
@@ -528,8 +555,12 @@ export function Dashboard() {
     }
     prevRankRef.current = newRank;
 
+    const scenarioName =
+      getScenarioById(state.currentScenarioId)?.displayName ?? 'the session';
+
     setScorecardData({
       ...snapshot,
+      scenarioName,
       persistMessage: result.ok
         ? 'Career progress saved to Supabase.'
         : `Session ended (save failed: ${result.reason})`,
@@ -783,6 +814,7 @@ export function Dashboard() {
           careerPnL={scorecardData.careerPnL}
           conductScore={scorecardData.conductScore}
           rank={scorecardData.rank}
+          scenarioName={scorecardData.scenarioName}
           auditTrail={scorecardData.auditTrail}
           persistMessage={scorecardData.persistMessage}
           onClose={() => {

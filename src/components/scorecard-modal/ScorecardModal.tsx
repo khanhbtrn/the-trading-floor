@@ -8,6 +8,7 @@ interface ScorecardModalProps {
   careerPnL: number;
   conductScore: number;
   rank: Rank;
+  scenarioName?: string;
   auditTrail: AuditEntry[];
   persistMessage?: string | null;
   onClose: () => void;
@@ -18,6 +19,7 @@ export function ScorecardModal({
   careerPnL,
   conductScore,
   rank,
+  scenarioName = 'the session',
   auditTrail,
   persistMessage,
   onClose,
@@ -32,7 +34,7 @@ export function ScorecardModal({
       >
         <h2 className="font-pixel text-sm text-cyan-300">SESSION SCORECARD</h2>
         <p className="mt-1 font-mono text-xs text-zinc-500">
-          You just traded through the week Lehman Brothers collapsed.
+          Session complete — {scenarioName}.
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 font-mono text-sm">
