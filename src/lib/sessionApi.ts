@@ -10,9 +10,15 @@ export interface EndSessionPayload {
   sessionsPlayed: number;
 }
 
-export async function endSession(
-  payload: EndSessionPayload
-): Promise<{ ok: boolean; reason?: string }> {
+export type SessionEndResult =
+  | { ok: true }
+  | { ok: false; reason: string };
+
+export type LeaderboardResult =
+  | { ok: true; entries: { player_name: string; rank: Rank; career_pnl: number }[] }
+  | { ok: false; error: string; entries: [] };
+
+export async function endSession(payload: EndSessionPayload): Promise<SessionEndResult> {
   try {
     const res = await fetch('/api/session/end', {
       method: 'POST',
@@ -26,7 +32,11 @@ export async function endSession(
       return { ok: false, reason: data.reason ?? data.error ?? `HTTP ${res.status}` };
     }
 
-    return { ok: data.ok === true };
+    if (data.ok !== true) {
+      return { ok: false, reason: data.reason ?? data.error ?? 'Save failed' };
+    }
+
+    return { ok: true };
   } catch (e) {
     return {
       ok: false,
@@ -35,17 +45,28 @@ export async function endSession(
   }
 }
 
-export async function fetchLeaderboard(): Promise<
-  { player_name: string; rank: Rank; career_pnl: number }[]
-> {
+export async function fetchLeaderboard(): Promise<LeaderboardResult> {
   try {
     const res = await fetch('/api/leaderboard');
-    if (!res.ok) return [];
     const data = (await res.json()) as {
       entries?: { player_name: string; rank: Rank; career_pnl: number }[];
+      error?: string;
     };
-    return data.entries ?? [];
-  } catch {
-    return [];
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: data.error ?? `Leaderboard failed (${res.status})`,
+        entries: [],
+      };
+    }
+
+    return { ok: true, entries: data.entries ?? [] };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Leaderboard network error',
+      entries: [],
+    };
   }
 }
